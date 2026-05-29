@@ -1,0 +1,3 @@
+# .gitignore
+firmware/esp32-iot/config.h
+.superpowers/
