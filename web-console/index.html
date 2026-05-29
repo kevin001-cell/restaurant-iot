@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>屁屁点餐 — 餐厅温湿度监控</title>
+<script src="https://unpkg.com/mqtt@5.6.3/dist/mqtt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:linear-gradient(135deg,#fff3e0,#ffe0b2);
+  min-height:100vh;padding:16px;color:#333;
+}
+.container{max-width:480px;margin:0 auto}
+h1{text-align:center;font-size:22px;margin-bottom:6px;color:#e8734a}
+.subtitle{text-align:center;font-size:13px;color:#999;margin-bottom:20px}
+
+/* 实时数据卡片 */
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.card{
+  background:#fff;border-radius:16px;padding:20px;text-align:center;
+  box-shadow:0 2px 12px rgba(0,0,0,.08);
+}
+.card .value{font-size:48px;font-weight:700;color:#e8734a}
+.card .unit{font-size:16px;color:#e8734a;font-weight:400}
+.card .label{font-size:13px;color:#999;margin-top:4px}
+.card.warn .value{color:#e53935}
+.card.warn{animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 2px 12px rgba(0,0,0,.08)}50%{box-shadow:0 0 24px rgba(229,57,53,.3)}}
+
+/* LED 控制 */
+.led-panel{
+  background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;
+  box-shadow:0 2px 12px rgba(0,0,0,.08);
+}
+.led-panel h3{font-size:16px;margin-bottom:12px;color:#555}
+.led-row{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.led-indicator{
+  width:16px;height:16px;border-radius:50%;background:#ccc;
+  transition:background .3s,box-shadow .3s;
+}
+.led-indicator.on{background:#ff9800;box-shadow:0 0 12px rgba(255,152,0,.6)}
+.switch-btn{
+  flex:1;padding:10px;border:none;border-radius:10px;font-size:16px;font-weight:600;
+  cursor:pointer;transition:all .2s;color:#fff;
+}
+.switch-btn.on{background:#ff9800}
+.switch-btn.off{background:#bdbdbd}
+
+.slider-row{display:flex;align-items:center;gap:10px}
+.slider-row label{font-size:13px;color:#888;white-space:nowrap}
+.slider-row input[type=range]{flex:1;accent-color:#e8734a}
+.slider-row .bval{width:40px;text-align:center;font-weight:600;color:#e8734a}
+.send-btn{
+  margin-top:12px;width:100%;padding:12px;border:none;border-radius:10px;
+  background:#e8734a;color:#fff;font-size:16px;font-weight:600;cursor:pointer;
+}
+.send-btn:active{opacity:.8}
+
+/* 历史曲线 */
+.chart-panel{
+  background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;
+  box-shadow:0 2px 12px rgba(0,0,0,.08);
+}
+.chart-panel h3{font-size:16px;margin-bottom:8px;color:#555}
+.chart-wrap{position:relative;height:220px}
+.chart-wrap canvas{width:100%!important}
+
+/* 连接状态 */
+.status{
+  text-align:center;font-size:12px;padding:8px;border-radius:8px;margin-bottom:12px;
+}
+.status.online{background:#e8f5e9;color:#2e7d32}
+.status.offline{background:#ffebee;color:#c62828}
+
+/* 告警弹窗 */
+.toast{
+  position:fixed;top:20px;left:50%;transform:translateX(-50%);
+  background:#e53935;color:#fff;padding:12px 24px;border-radius:12px;
+  font-size:14px;font-weight:600;z-index:999;
+  box-shadow:0 4px 20px rgba(229,57,53,.4);
+  animation:slideDown .3s ease-out;
+  display:none;
+}
+@keyframes slideDown{from{transform:translateX(-50%) translateY(-60px);opacity:0}to{transform:translateX(-50%) translateY(0);opacity:1}}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>🌡️ 餐厅环境监控</h1>
+  <p class="subtitle">屁屁点餐 · 智能温湿度</p>
+
+  <!-- 连接状态 -->
+  <div class="status offline" id="status">连接中...</div>
+
+  <!-- 实时数据 -->
+  <div class="cards">
+    <div class="card" id="tempCard">
+      <div class="value"><span id="tempVal">--</span><span class="unit">°C</span></div>
+      <div class="label">当前温度</div>
+    </div>
+    <div class="card" id="humCard">
+      <div class="value"><span id="humVal">--</span><span class="unit">%</span></div>
+      <div class="label">当前湿度</div>
+    </div>
+  </div>
+
+  <!-- LED 控制面板 -->
+  <div class="led-panel">
+    <h3>💡 灯光控制</h3>
+    <div class="led-row">
+      <div class="led-indicator off" id="ledDot"></div>
+      <button class="switch-btn off" id="ledBtn" onclick="toggleLed()">OFF</button>
+    </div>
+    <div class="slider-row">
+      <label>亮度</label>
+      <input type="range" min="0" max="100" value="0" id="brightness">
+      <span class="bval" id="bval">0%</span>
+    </div>
+    <button class="send-btn" onclick="sendLedCmd()">确认发送</button>
+  </div>
+
+  <!-- 历史曲线 -->
+  <div class="chart-panel">
+    <h3>📈 近24小时温湿度趋势</h3>
+    <div class="chart-wrap"><canvas id="chart"></canvas></div>
+  </div>
+</div>
+
+<!-- 告警 -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ========== 配置 (部署时替换为实际值) ==========
+const PRODUCT_ID  = 'YOUR_PRODUCT_ID';
+const DEVICE_NAME = 'dining_hall_01';
+const DEVICE_SECRET = 'YOUR_DEVICE_SECRET';
+
+// 告警阈值
+const TEMP_ALERT_HIGH = 30;
+const HUM_ALERT_HIGH  = 80;
+
+// ========== MQTT 连接 ==========
+const wsUrl = `wss://${PRODUCT_ID}.iotcloud.tencentdevices.com/mqtt`;
+
+function genPassword() {
+  const connid = Math.floor(Math.random() * 90000 + 10000).toString();
+  const username = PRODUCT_ID + DEVICE_NAME + ';12010126;' + connid + ';0';
+  return { username, password: DEVICE_SECRET };
+}
+
+const auth = genPassword();
+const client = mqtt.connect(wsUrl, {
+  clientId: PRODUCT_ID + DEVICE_NAME,
+  username: auth.username,
+  password: auth.password,
+  keepalive: 120,
+  reconnectPeriod: 5000
+});
+
+const TOPIC_UP   = `$thing/up/property/${PRODUCT_ID}/${DEVICE_NAME}`;
+const TOPIC_DOWN = `$thing/down/property/${PRODUCT_ID}/${DEVICE_NAME}`;
+
+client.on('connect', () => {
+  document.getElementById('status').textContent = '在线';
+  document.getElementById('status').className = 'status online';
+  client.subscribe(TOPIC_UP);
+});
+
+client.on('message', (topic, payload) => {
+  try {
+    const msg = JSON.parse(payload.toString());
+    if (msg.method === 'report' && msg.params) {
+      updateDisplay(msg.params);
+    }
+  } catch(e) {}
+});
+
+client.on('offline', () => {
+  document.getElementById('status').textContent = '离线';
+  document.getElementById('status').className = 'status offline';
+});
+
+client.on('error', (err) => {
+  console.error('MQTT error:', err);
+});
+
+// ========== 更新显示 ==========
+function updateDisplay(params) {
+  if (params.temperature !== undefined) {
+    document.getElementById('tempVal').textContent = params.temperature.toFixed(1);
+    const card = document.getElementById('tempCard');
+    if (params.temperature > TEMP_ALERT_HIGH) {
+      card.classList.add('warn');
+      showToast(`⚠️ 温度过高: ${params.temperature.toFixed(1)}°C (阈值 ${TEMP_ALERT_HIGH}°C)`);
+    } else {
+      card.classList.remove('warn');
+    }
+  }
+  if (params.humidity !== undefined) {
+    document.getElementById('humVal').textContent = Math.round(params.humidity);
+    const card = document.getElementById('humCard');
+    if (params.humidity > HUM_ALERT_HIGH) {
+      card.classList.add('warn');
+      showToast(`⚠️ 湿度过高: ${Math.round(params.humidity)}% (阈值 ${HUM_ALERT_HIGH}%)`);
+    } else {
+      card.classList.remove('warn');
+    }
+  }
+  if (params.led_switch !== undefined) {
+    updateLedUI(params.led_switch === 1, params.led_brightness || 0);
+  }
+
+  // 更新历史数据
+  if (params.temperature !== undefined) {
+    const now = new Date();
+    const label = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+    tempData.labels.push(label);
+    tempData.datasets[0].data.push(params.temperature);
+    tempData.datasets[1].data.push(params.humidity);
+
+    const maxPoints = 50;
+    if (tempData.labels.length > maxPoints) {
+      tempData.labels.shift();
+      tempData.datasets[0].data.shift();
+      tempData.datasets[1].data.shift();
+    }
+    chart.update();
+  }
+}
+
+// ========== LED UI ==========
+function updateLedUI(state, brightness) {
+  const dot = document.getElementById('ledDot');
+  const btn = document.getElementById('ledBtn');
+  const slider = document.getElementById('brightness');
+  const bval = document.getElementById('bval');
+
+  if (state) {
+    dot.className = 'led-indicator on';
+    btn.textContent = 'ON';
+    btn.className = 'switch-btn on';
+  } else {
+    dot.className = 'led-indicator off';
+    btn.textContent = 'OFF';
+    btn.className = 'switch-btn off';
+  }
+  slider.value = brightness;
+  bval.textContent = brightness + '%';
+}
+
+function toggleLed() {
+  const btn = document.getElementById('ledBtn');
+  const newState = btn.textContent === 'OFF';
+  const slider = document.getElementById('brightness');
+  const brightness = parseInt(slider.value);
+  updateLedUI(newState, brightness);
+}
+
+function sendLedCmd() {
+  const btn = document.getElementById('ledBtn');
+  const slider = document.getElementById('brightness');
+  const state = btn.textContent === 'ON' ? 1 : 0;
+  const brightness = parseInt(slider.value);
+
+  const msg = {
+    method: 'control',
+    clientToken: Math.floor(Math.random() * 900000 + 100000).toString(),
+    params: {
+      led_switch: state,
+      led_brightness: brightness
+    }
+  };
+
+  client.publish(TOPIC_DOWN, JSON.stringify(msg));
+  showToast(`已发送: LED ${state?'开':'关'}, 亮度 ${brightness}%`);
+}
+
+// ========== 告警弹窗 ==========
+let toastTimer;
+function showToast(text) {
+  const el = document.getElementById('toast');
+  el.textContent = text;
+  el.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+// ========== 历史曲线 ==========
+const tempData = {
+  labels: [],
+  datasets: [
+    { label: '温度 (°C)', data: [], borderColor: '#e8734a', backgroundColor: 'rgba(232,115,74,.1)', tension: 0.4, fill: true },
+    { label: '湿度 (%)',  data: [], borderColor: '#42a5f5', backgroundColor: 'rgba(66,165,245,.1)',  tension: 0.4, fill: true }
+  ]
+};
+
+const ctx = document.getElementById('chart').getContext('2d');
+const chart = new Chart(ctx, {
+  type: 'line',
+  data: tempData,
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 16, font: { size: 11 } } } },
+    scales: {
+      x: { display: false },
+      y: { min: 0, max: 60, ticks: { font: { size: 10 } }, grid: { color: '#f0f0f0' } }
+    }
+  }
+});
+
+// ========== 亮度滑块实时更新 ==========
+document.getElementById('brightness').addEventListener('input', function() {
+  document.getElementById('bval').textContent = this.value + '%';
+  updateLedUI(document.getElementById('ledBtn').textContent === 'ON', parseInt(this.value));
+});
+</script>
+
+</body>
+</html>
