@@ -17,6 +17,7 @@ PubSubClient mqtt(wifiClient);
 bool   ledState = false;
 int    ledBrightness = 0;    // 0-100
 const int LED_PIN = 5;       // GPIO5 PWM 输出
+volatile bool statusReportPending = false;
 
 // ========== 上报计时 ==========
 unsigned long lastReportTime = 0;
@@ -27,15 +28,9 @@ const String TOPIC_UP   = "$thing/up/property/" + String(PRODUCT_ID) + "/" + Str
 const String TOPIC_DOWN = "$thing/down/property/" + String(PRODUCT_ID) + "/" + String(DEVICE_NAME);
 
 // ========== HMAC-SHA1 Base64 密码生成 (腾讯云 IoT 认证) ==========
-String generateMQTTPassword() {
-  // 腾讯云 IoT MQTT 认证:
-  // username = PRODUCT_ID DEVICE_NAME;12010126;{connid};{expiry}
-  // password = base64(hmac_sha1(device_secret, username))
-
-  String connid = String(random(10000, 99999));
-  unsigned long expiry = 0; // 0 = 永不过期(密钥认证模式)
-  String username = String(PRODUCT_ID) + DEVICE_NAME + ";12010126;" + connid + ";" + String(expiry);
-
+// username = PRODUCT_ID DEVICE_NAME;12010126;{connid};{expiry}
+// password = base64(hmac_sha1(device_secret, username))
+String generateMQTTPassword(const String& username) {
   // HMAC-SHA1
   uint8_t hmac[20];
   mbedtls_md_context_t ctx;
@@ -70,10 +65,10 @@ void reconnectMQTT() {
   while (!mqtt.connected()) {
     Serial.print("MQTT connecting...");
 
-    String clientId = String(PRODUCT_ID) + DEVICE_NAME;
     String connid = String(random(10000, 99999));
     String username = String(PRODUCT_ID) + DEVICE_NAME + ";12010126;" + connid + ";0";
-    String password = generateMQTTPassword();
+    String password = generateMQTTPassword(username);
+    String clientId = String(PRODUCT_ID) + DEVICE_NAME;
 
     if (mqtt.connect(clientId.c_str(), username.c_str(), password.c_str())) {
       Serial.println("connected");
@@ -114,8 +109,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     analogWrite(LED_PIN, pwmValue);
     Serial.printf("LED: %s, brightness: %d%%\n", ledState ? "ON" : "OFF", ledBrightness);
 
-    // 回执: 上报当前 LED 状态
-    reportStatus();
+    // 延迟上报: mqtt.publish 不能在回调中直接调用
+    statusReportPending = true;
   }
 }
 
@@ -164,6 +159,7 @@ void reportStatus() {
 // ========== Arduino Setup ==========
 void setup() {
   Serial.begin(115200);
+  randomSeed(esp_random());
   delay(1000);
   Serial.println("\n=== ESP32S3 IoT Starting ===");
 
@@ -173,18 +169,30 @@ void setup() {
 
   // 初始化 I2C (SHT30)
   Wire.begin(21, 22);  // SDA=GPIO21, SCL=GPIO22
-  if (!sht30.begin(0x44)) {
-    Serial.println("SHT30 init failed! Check wiring.");
-    while (1) delay(1000);
+  int shtRetries = 0;
+  while (!sht30.begin(0x44) && shtRetries < 3) {
+    Serial.println("SHT30 init retry...");
+    delay(1000);
+    shtRetries++;
   }
-  Serial.println("SHT30 OK");
+  if (!sht30.begin(0x44)) {
+    Serial.println("SHT30 init failed! Will retry on each report.");
+  } else {
+    Serial.println("SHT30 OK");
+  }
 
   // 连接 WiFi
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("WiFi connecting");
-  while (WiFi.status() != WL_CONNECTED) {
+  int wifiRetries = 0;
+  while (WiFi.status() != WL_CONNECTED && wifiRetries < 40) {
     Serial.print(".");
     delay(500);
+    wifiRetries++;
+  }
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("\nWiFi failed, restarting...");
+    ESP.restart();
   }
   Serial.println();
   Serial.print("WiFi connected, IP: ");
@@ -202,6 +210,12 @@ void loop() {
     reconnectMQTT();
   }
   mqtt.loop();
+
+  // 延迟状态上报 (从回调中推迟到 loop)
+  if (statusReportPending) {
+    statusReportPending = false;
+    reportStatus();
+  }
 
   unsigned long now = millis();
   if (now - lastReportTime >= REPORT_INTERVAL) {
