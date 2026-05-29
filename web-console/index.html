@@ -125,7 +125,7 @@ h1{text-align:center;font-size:22px;margin-bottom:6px;color:#e8734a}
 
   <!-- 历史曲线 -->
   <div class="chart-panel">
-    <h3>📈 近24小时温湿度趋势</h3>
+    <h3>📈 实时温湿度趋势</h3>
     <div class="chart-wrap"><canvas id="chart"></canvas></div>
   </div>
 </div>
@@ -176,7 +176,7 @@ client.on('message', (topic, payload) => {
     if (msg.method === 'report' && msg.params) {
       updateDisplay(msg.params);
     }
-  } catch(e) {}
+  } catch(e) { console.error('MQTT message parse error:', e); }
 });
 
 client.on('offline', () => {
@@ -190,22 +190,25 @@ client.on('error', (err) => {
 
 // ========== 更新显示 ==========
 function updateDisplay(params) {
+  const temp = typeof params.temperature === 'number' ? params.temperature : parseFloat(params.temperature);
+  const hum  = typeof params.humidity === 'number' ? params.humidity : parseInt(params.humidity);
+
   if (params.temperature !== undefined) {
-    document.getElementById('tempVal').textContent = params.temperature.toFixed(1);
+    document.getElementById('tempVal').textContent = temp.toFixed(1);
     const card = document.getElementById('tempCard');
-    if (params.temperature > TEMP_ALERT_HIGH) {
+    if (temp > TEMP_ALERT_HIGH) {
       card.classList.add('warn');
-      showToast(`⚠️ 温度过高: ${params.temperature.toFixed(1)}°C (阈值 ${TEMP_ALERT_HIGH}°C)`);
+      showToast(`⚠️ 温度过高: ${temp.toFixed(1)}°C (阈值 ${TEMP_ALERT_HIGH}°C)`);
     } else {
       card.classList.remove('warn');
     }
   }
   if (params.humidity !== undefined) {
-    document.getElementById('humVal').textContent = Math.round(params.humidity);
+    document.getElementById('humVal').textContent = Math.round(hum);
     const card = document.getElementById('humCard');
-    if (params.humidity > HUM_ALERT_HIGH) {
+    if (hum > HUM_ALERT_HIGH) {
       card.classList.add('warn');
-      showToast(`⚠️ 湿度过高: ${Math.round(params.humidity)}% (阈值 ${HUM_ALERT_HIGH}%)`);
+      showToast(`⚠️ 湿度过高: ${Math.round(hum)}% (阈值 ${HUM_ALERT_HIGH}%)`);
     } else {
       card.classList.remove('warn');
     }
@@ -215,12 +218,12 @@ function updateDisplay(params) {
   }
 
   // 更新历史数据
-  if (params.temperature !== undefined) {
+  if (temp !== undefined && !isNaN(temp)) {
     const now = new Date();
     const label = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
     tempData.labels.push(label);
-    tempData.datasets[0].data.push(params.temperature);
-    tempData.datasets[1].data.push(params.humidity);
+    tempData.datasets[0].data.push(temp);
+    tempData.datasets[1].data.push(hum);
 
     const maxPoints = 50;
     if (tempData.labels.length > maxPoints) {
@@ -293,8 +296,8 @@ function showToast(text) {
 const tempData = {
   labels: [],
   datasets: [
-    { label: '温度 (°C)', data: [], borderColor: '#e8734a', backgroundColor: 'rgba(232,115,74,.1)', tension: 0.4, fill: true },
-    { label: '湿度 (%)',  data: [], borderColor: '#42a5f5', backgroundColor: 'rgba(66,165,245,.1)',  tension: 0.4, fill: true }
+    { label: '温度 (°C)', data: [], borderColor: '#e8734a', backgroundColor: 'rgba(232,115,74,.1)', tension: 0.4, fill: true, yAxisID: 'y' },
+    { label: '湿度 (%)',  data: [], borderColor: '#42a5f5', backgroundColor: 'rgba(66,165,245,.1)',  tension: 0.4, fill: true, yAxisID: 'y1' }
   ]
 };
 
@@ -308,7 +311,22 @@ const chart = new Chart(ctx, {
     plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 16, font: { size: 11 } } } },
     scales: {
       x: { display: false },
-      y: { min: 0, max: 60, ticks: { font: { size: 10 } }, grid: { color: '#f0f0f0' } }
+      y: {
+        type: 'linear',
+        position: 'left',
+        min: 0,
+        max: 50,
+        ticks: { font: { size: 10 }, callback: v => v + '°C' },
+        grid: { color: '#f0f0f0' }
+      },
+      y1: {
+        type: 'linear',
+        position: 'right',
+        min: 0,
+        max: 100,
+        ticks: { font: { size: 10 }, callback: v => v + '%' },
+        grid: { drawOnChartArea: false }
+      }
     }
   }
 });
