@@ -1,0 +1,57 @@
+<h2>ESP32S3 固件开发框架选择</h2>
+<p class="subtitle">决定了"用什么语言写代码"和"难度有多大"</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">简单度 ⬆</div>
+    <div class="mockup-body" style="padding:16px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <div style="width:32px;height:32px;background:#4caf50;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold;font-size:14px;">A</div>
+        <strong>Arduino (C++)</strong>
+      </div>
+      <p style="margin:0;font-size:13px;color:#555;">类C语法，DHT22/MQTT/WiFi库一行安装，社区资源海量。适合 80% IoT 项目。</p>
+    </div>
+  </div>
+  <div class="mockup">
+    <div class="mockup-header">生态成熟度 ⬆</div>
+    <div class="mockup-body" style="padding:16px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <div style="width:32px;height:32px;background:#ff9800;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold;font-size:14px;">B</div>
+        <strong>MicroPython</strong>
+      </div>
+      <p style="margin:0;font-size:13px;color:#555;">Python语法，上手最快。但ESP32S3上有些库不如C++成熟，内存有限。</p>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px;">你选哪个？</h3>
+
+<div class="options">
+  <div class="option" data-choice="arduino" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Arduino (C++) — 推荐</h3>
+      <p>库生态最完整，DHT22 + PubSubClient MQTT + WiFi 三件套开箱即用，教程多，遇到问题容易搜到答案</p>
+    </div>
+  </div>
+  <div class="option" data-choice="micropython" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>MicroPython</h3>
+      <p>Python写起来舒服，快速实验方便。但MQTT库(umqtt)功能较弱，调试手段有限</p>
+    </div>
+  </div>
+</div>
+
+<div class="pros-cons" style="margin-top:16px;">
+  <div class="pros"><h4>推荐 Arduino 的理由</h4><ul>
+    <li>腾讯 IoT SDK 官方支持 C/Arduino</li>
+    <li>DHT22、WiFiManager 等库一键安装</li>
+    <li>OTA 远程升级支持成熟</li>
+    <li>你遇到问题时，网上 90% 的 ESP32 教程都是 Arduino</li>
+  </ul></div>
+  <div class="cons"><h4>Arduino 的代价</h4><ul>
+    <li>C++ 语法比 Python 繁琐一点</li>
+    <li>需要安装 Arduino IDE 或 PlatformIO</li>
+  </ul></div>
+</div>

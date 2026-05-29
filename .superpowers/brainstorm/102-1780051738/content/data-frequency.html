@@ -1,0 +1,73 @@
+<h2>数据采集与存储策略</h2>
+<p class="subtitle">决定上传频率、数据保留时间和告警规则</p>
+
+<h3>问题一：温湿度数据多久上报一次？</h3>
+
+<div class="options">
+  <div class="option" data-choice="freq-30s" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>每 30 秒</h3>
+      <p>实时性强，适合需要快速响应的场景。数据量大，一天2880条</p>
+    </div>
+  </div>
+  <div class="option" data-choice="freq-60s" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>每 1 分钟 — 推荐</h3>
+      <p>餐厅场景够用，温湿度变化慢。一天1440条，存储压力小</p>
+    </div>
+  </div>
+  <div class="option" data-choice="freq-5m" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>每 5 分钟</h3>
+      <p>更省流量和存储，但粒度较粗，看趋势还行，实时性弱</p>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px;">问题二：历史数据保留多久？</h3>
+
+<div class="options">
+  <div class="option" data-choice="retain-7d" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>7 天</h3>
+      <p>看最近一周趋势，存储成本最低</p>
+    </div>
+  </div>
+  <div class="option" data-choice="retain-30d" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>30 天 — 推荐</h3>
+      <p>月度对比，看出季节变化趋势，IoT Hub免费额度通常够用</p>
+    </div>
+  </div>
+  <div class="option" data-choice="retain-90d" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>90 天</h3>
+      <p>完整季节数据，需要付费存储方案</p>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px;">问题三：需要温湿度告警吗？</h3>
+
+<div class="options">
+  <div class="option" data-choice="alert-yes" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>需要告警</h3>
+      <p>比如温度超过30°C或湿度超过80%时，网页上弹出提醒</p>
+    </div>
+  </div>
+  <div class="option" data-choice="alert-no" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>不需要告警</h3>
+      <p>只看数据就行，不用提醒</p>
+    </div>
+  </div>
+</div>

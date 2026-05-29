@@ -1,0 +1,61 @@
+<h2>数据看板和控制界面 — 放在哪里？</h2>
+<p class="subtitle">选择腾讯云 IoT 后，数据天然可以和现有小程序打通</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">方案 A：集成到屁屁点餐小程序</div>
+    <div class="mockup-body" style="padding:12px;">
+      <div class="mock-nav">🍚 菜单 | 📋 订单</div>
+      <div style="display:flex;padding:8px;gap:8px;">
+        <div class="mock-sidebar" style="flex:1;text-align:center;">🌡️<br>温湿度</div>
+        <div class="mock-content" style="flex:2;">
+          <div style="font-size:12px;text-align:center;">温度 25.3°C</div>
+          <div style="font-size:12px;text-align:center;margin-top:4px;">湿度 62%</div>
+          <div style="font-size:12px;text-align:center;margin-top:4px;">💡 LED <span style="color:#4caf50;">● 开</span></div>
+          <div class="mock-input" style="margin-top:4px;font-size:10px;text-align:center;">亮度 ██████░░ 60%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="mockup">
+    <div class="mockup-header">方案 B：独立 Web 控制台</div>
+    <div class="mockup-body" style="padding:12px;">
+      <div class="mock-nav">🌡️ 温湿度监控系统</div>
+      <div class="mock-content" style="padding:8px;">
+        <div style="font-size:24px;text-align:center;font-weight:bold;">25.3°C</div>
+        <div style="font-size:12px;text-align:center;color:#888;">温度</div>
+        <div style="font-size:24px;text-align:center;font-weight:bold;margin-top:8px;">62%</div>
+        <div style="font-size:12px;text-align:center;color:#888;">湿度</div>
+        <div style="margin-top:12px;text-align:center;">💡 灯光控制</div>
+        <button class="mock-button" style="display:block;margin:8px auto;">开/关</button>
+        <div class="mock-input" style="margin-top:4px;">亮度滑块</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px;">你的控制端放在哪里？</h3>
+
+<div class="options">
+  <div class="option" data-choice="miniprogram-only" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>集成到屁屁点餐小程序 — 推荐</h3>
+      <p>在现有小程序里加一个"设备监控"Tab，顾客/店员都能看到厨房温湿度。一个App搞定所有事。技术上也最简单：CloudBase + IoT 数据已在同一腾讯云账号下</p>
+    </div>
+  </div>
+  <div class="option" data-choice="both" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>小程序 + Web双端</h3>
+      <p>小程序给日常使用，Web后台给更详细的数据分析（历史曲线、导出报表）。代价：多一套前端要开发和维护</p>
+    </div>
+  </div>
+  <div class="option" data-choice="web-only" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>独立 Web 控制台</h3>
+      <p>单独的网页应用，不依赖微信。适合PC大屏看数据。缺点：需要另外打开，不如小程序方便</p>
+    </div>
+  </div>
+</div>

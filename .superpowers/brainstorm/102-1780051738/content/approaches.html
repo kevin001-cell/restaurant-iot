@@ -1,0 +1,67 @@
+<h2>三种数据流方案对比</h2>
+<p class="subtitle">核心区别：Web控制台如何拿到设备数据</p>
+
+<div class="options">
+  <div class="option" data-choice="approach-mqtt-direct" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>MQTT 直连模式 — 推荐</h3>
+      <p><strong>Web页面直接通过MQTT.js订阅IoT Hub。</strong>设备上报→IoT Hub→Web即时收到。历史数据存IoT Hub时序数据库，Web通过腾讯云API查询历史。</p>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>优点</h4><ul>
+          <li>真正的实时，数据1秒内到达页面</li>
+          <li>架构最简单，不需要额外后端服务</li>
+          <li>LED控制也通过MQTT下发，双向通信统一</li>
+        </ul></div>
+        <div class="cons"><h4>缺点</h4><ul>
+          <li>Web页面需要持有IoT Hub的MQTT认证凭证</li>
+          <li>需要处理MQTT断线重连逻辑</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="approach-cloudbase" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>CloudBase 中转模式</h3>
+      <p>IoT Hub规则引擎→转发到CloudBase数据库→Web通过HTTP API查询。利用你已有的CloudBase基础设施。</p>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>优点</h4><ul>
+          <li>复用已有CloudBase账号和数据库</li>
+          <li>Web纯HTTP，部署简单（放CloudBase静态托管）</li>
+          <li>安全：凭证在云端，不暴露给浏览器</li>
+        </ul></div>
+        <div class="cons"><h4>缺点</h4><ul>
+          <li>非实时：HTTP轮询有1-5秒延迟</li>
+          <li>LED控制需要额外云函数转发到IoT Hub</li>
+          <li>多一个中间环节，排查问题更复杂</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="approach-hybrid" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>混合模式</h3>
+      <p>实时数据走MQTT直连，历史数据走CloudBase HTTP查询。兼顾实时性和安全性。</p>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>优点</h4><ul>
+          <li>实时+安全两个需求都满足</li>
+          <li>历史数据可以和小程序共享</li>
+        </ul></div>
+        <div class="cons"><h4>缺点</h4><ul>
+          <li>两套通路，开发和维护成本翻倍</li>
+          <li>对非专业开发者来说过于复杂</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:24px;padding:16px;background:#e3f2fd;border-radius:8px;">
+  <strong>说明：</strong>方案A是IoT纯血方案，最适合你的场景——单设备、Web控制台、非专业开发者。<br>
+  Web控制台可以部署在CloudBase静态托管上（你已有），只是一个HTML文件，打开即用。<br>
+  不需要写任何后端代码，MQTT连接和LED控制全部在浏览器里完成。
+</div>

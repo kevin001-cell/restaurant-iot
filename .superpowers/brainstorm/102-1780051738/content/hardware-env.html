@@ -1,0 +1,88 @@
+<h2>硬件配置与应用场景</h2>
+<p class="subtitle">确认传感器型号、部署位置和数量</p>
+
+<h3>问题一：你用的是什么传感器？</h3>
+
+<div class="options">
+  <div class="option" data-choice="dht22" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>DHT22 (AM2302) — 推荐</h3>
+      <p>温湿度一体，精度较高(±0.5°C, ±2%RH)，3.3V供电直接接ESP32S3，Arduino库成熟</p>
+    </div>
+  </div>
+  <div class="option" data-choice="dht11" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>DHT11</h3>
+      <p>便宜但精度低(±2°C, ±5%RH)，只适合玩玩，不适合实际监控</p>
+    </div>
+  </div>
+  <div class="option" data-choice="sht30" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>SHT30 / SHT31 (I2C)</h3>
+      <p>工业级精度(±0.3°C, ±2%RH)，I2C接口更稳定，但价格稍高</p>
+    </div>
+  </div>
+  <div class="option" data-choice="other-sensor" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content">
+      <h3>还没买 / 不确定型号</h3>
+      <p>手头还没硬件，需要建议</p>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px;">问题二：这个系统用在什么场景？</h3>
+<p class="subtitle">影响传感器部署位置、数量、采集频率</p>
+
+<div class="options" data-multiselect>
+  <div class="option" data-choice="kitchen" onclick="toggleSelect(this)">
+    <div class="letter">K</div>
+    <div class="content">
+      <h3>厨房后厨</h3>
+      <p>监控烹饪区温湿度，高温高湿环境</p>
+    </div>
+  </div>
+  <div class="option" data-choice="dining" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content">
+      <h3>餐厅大堂</h3>
+      <p>监控顾客用餐区舒适度</p>
+    </div>
+  </div>
+  <div class="option" data-choice="storage" onclick="toggleSelect(this)">
+    <div class="letter">S</div>
+    <div class="content">
+      <h3>食材仓库 / 冷柜</h3>
+      <p>低温/冷藏环境监控，防止食材变质</p>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px;">问题三：LED 灯是什么类型的？</h3>
+
+<div class="options">
+  <div class="option" data-choice="led-simple" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>普通LED模块 + PWM调光</h3>
+      <p>单色LED，通过PWM调节亮度(0-100%)，最简单</p>
+    </div>
+  </div>
+  <div class="option" data-choice="led-rgb" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>RGB/RGBW LED</h3>
+      <p>可调颜色+亮度，需要3-4路PWM，控制更丰富</p>
+    </div>
+  </div>
+  <div class="option" data-choice="led-strip" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>LED 灯带 (WS2812)</h3>
+      <p>可编程灯带，多灯珠独立控制，适合氛围灯</p>
+    </div>
+  </div>
+</div>

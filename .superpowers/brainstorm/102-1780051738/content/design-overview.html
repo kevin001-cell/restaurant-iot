@@ -1,0 +1,116 @@
+<h2>完整设计方案总览</h2>
+<p class="subtitle">ESP32S3 温湿度监控 + LED远程控制</p>
+
+<!-- 架构图 -->
+<div class="mockup" style="margin-bottom:20px;">
+  <div class="mockup-header">系统架构图</div>
+  <div class="mockup-body" style="padding:16px;">
+    <pre style="font-family:Consolas,monospace;font-size:12px;line-height:1.6;margin:0;background:#fafafa;padding:12px;border-radius:6px;">
+┌──────────────────────────────────────────────────────────┐
+│                    腾讯云 IoT Explorer                     │
+│  ┌──────────┐  ┌──────────┐  ┌────────────────────┐      │
+│  │ 设备认证  │  │ 规则引擎  │  │ 时序数据库(30天)    │      │
+│  │(密钥认证) │  │(消息路由) │  │ 温湿度历史存储       │      │
+│  └──────────┘  └──────────┘  └────────────────────┘      │
+│        ▲              │                                   │
+│  MQTT  │   publish    │  subscribe                        │
+│  TLS   │   (上报)     ▼  (下发)                           │
+└────────┼──────────────┼──────────────────────────────────┘
+         │              │
+    WiFi │              │ MQTT over WebSocket (TLS)
+         │              │
+  ┌──────┴──────────────┼─────────────────────────────┐
+  │   ESP32S3           │      Web 控制台              │
+  │                     │      (CloudBase 静态托管)     │
+  │  SHT30─I2C─┐       │      ┌──────────────────┐    │
+  │  (温湿度)   │       │      │ MQTT.js 客户端    │    │
+  │            ▼       │      │ ┌──────────────┐ │    │
+  │    ┌───────────┐   │      │ │ 实时数据显示   │ │    │
+  │    │ 传感器采集 │   │      │ │ 温度: 25.3°C  │ │    │
+  │    │ (每60秒)  │   │◄─────│ │ 湿度: 62%     │ │    │
+  │    └───────────┘   │      │ └──────────────┘ │    │
+  │         │          │      │ ┌──────────────┐ │    │
+  │         ▼          │      │ │ LED 控制面板   │ │    │
+  │    ┌───────────┐   │      │ │ [开/关] 按钮   │ │    │
+  │    │ MQTT上报   │───┼─────►│ │ [亮度滑块]    │ │    │
+  │    └───────────┘   │      │ └──────────────┘ │    │
+  │                    │      │ ┌──────────────┐ │    │
+  │  LED─GPIO─┐       │      │ │ 历史曲线+告警  │ │    │
+  │  (PWM调光) │       │      │ │ (腾讯云API)    │ │    │
+  │           ▼       │      │ └──────────────┘ │    │
+  │    ┌───────────┐   │      └──────────────────┘    │
+  │    │ MQTT订阅   │◄──┼─────── LED控制指令          │
+  │    │ LED控制    │   │                              │
+  │    └───────────┘   │                              │
+  └────────────────────┴──────────────────────────────┘
+    </pre>
+  </div>
+</div>
+
+<!-- 关键规格 -->
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">硬件规格</div>
+    <div class="mockup-body" style="padding:12px;font-size:13px;">
+      <table style="width:100%;">
+        <tr><td style="padding:4px 0;color:#666;">主控</td><td><strong>ESP32S3</strong></td></tr>
+        <tr><td style="padding:4px 0;color:#666;">传感器</td><td><strong>SHT30</strong> (I2C, ±0.3°C)</td></tr>
+        <tr><td style="padding:4px 0;color:#666;">LED</td><td><strong>单色LED + PWM</strong> (0-100%)</td></tr>
+        <tr><td style="padding:4px 0;color:#666;">通信</td><td>WiFi 2.4GHz</td></tr>
+        <tr><td style="padding:4px 0;color:#666;">协议</td><td>MQTT over TLS</td></tr>
+        <tr><td style="padding:4px 0;color:#666;">固件</td><td>Arduino C++</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="mockup">
+    <div class="mockup-header">云 + Web</div>
+    <div class="mockup-body" style="padding:12px;font-size:13px;">
+      <table style="width:100%;">
+        <tr><td style="padding:4px 0;color:#666;">云平台</td><td><strong>腾讯云 IoT Explorer</strong></td></tr>
+        <tr><td style="padding:4px 0;color:#666;">上报频率</td><td>每 60 秒</td></tr>
+        <tr><td style="padding:4px 0;color:#666;">数据保留</td><td>30 天</td></tr>
+        <tr><td style="padding:4px 0;color:#666;">告警</td><td>高温/高湿阈值提醒</td></tr>
+        <tr><td style="padding:4px 0;color:#666;">控制台</td><td>单HTML页面 (MQTT.js)</td></tr>
+        <tr><td style="padding:4px 0;color:#666;">托管</td><td>CloudBase 静态网站托管</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- MQTT Topic 设计 -->
+<div class="mockup" style="margin-top:20px;">
+  <div class="mockup-header">MQTT Topic 设计 (关键!)</div>
+  <div class="mockup-body" style="padding:12px;">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;font-family:Consolas,monospace;">
+      <tr style="background:#f5f5f5;">
+        <th style="padding:8px;text-align:left;">Topic</th>
+        <th style="padding:8px;text-align:left;">方向</th>
+        <th style="padding:8px;text-align:left;">说明</th>
+        <th style="padding:8px;text-align:left;">消息格式</th>
+      </tr>
+      <tr>
+        <td style="padding:8px;">$thing/up/property/设备名</td>
+        <td style="padding:8px;">设备→云</td>
+        <td style="padding:8px;">温湿度上报</td>
+        <td style="padding:8px;font-size:12px;">{"temperature":25.3, "humidity":62}</td>
+      </tr>
+      <tr>
+        <td style="padding:8px;">$thing/down/property/设备名</td>
+        <td style="padding:8px;">云→设备</td>
+        <td style="padding:8px;">LED控制</td>
+        <td style="padding:8px;font-size:12px;">{"led_switch":1, "led_brightness":60}</td>
+      </tr>
+      <tr>
+        <td style="padding:8px;">$thing/up/report/设备名</td>
+        <td style="padding:8px;">设备→云</td>
+        <td style="padding:8px;">设备状态</td>
+        <td style="padding:8px;font-size:12px;">在线心跳+LED当前状态回执</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<p style="margin-top:16px;color:#888;font-size:13px;text-align:center;">
+  以上是完整设计方案。请仔细查看，看看有没有需要调整的地方。<br>
+  确认后我将写入正式设计文档。
+</p>
