@@ -191,7 +191,7 @@ client.on('error', (err) => {
 // ========== 更新显示 ==========
 function updateDisplay(params) {
   const temp = typeof params.temperature === 'number' ? params.temperature : parseFloat(params.temperature);
-  const hum  = typeof params.humidity === 'number' ? params.humidity : parseInt(params.humidity);
+  const hum  = typeof params.humidity === 'number' ? params.humidity : parseFloat(params.humidity);
 
   if (params.temperature !== undefined) {
     document.getElementById('tempVal').textContent = temp.toFixed(1);
