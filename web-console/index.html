@@ -215,8 +215,8 @@ function updateDisplay(params) {
     updateLedUI(params.led_switch.value === 1, params.led_brightness?.value || 0);
   }
 
-  // 更新历史数据
-  if (tempVal !== undefined && !isNaN(temp)) {
+  // 更新历史数据 (仅当温湿度均有效时才追加)
+  if (tempVal !== undefined && !isNaN(temp) && !isNaN(hum)) {
     const now = new Date();
     const label = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
     tempData.labels.push(label);
