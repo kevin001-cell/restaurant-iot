@@ -42,8 +42,6 @@ void reconnectMQTT() {
       mqtt.subscribe(TOPIC_SET.c_str());
       Serial.print("Subscribed: ");
       Serial.println(TOPIC_SET);
-      // 订阅上报回执 (可选)
-      mqtt.subscribe(TOPIC_REPLY.c_str());
     } else {
       Serial.print("failed, rc=");
       Serial.print(mqtt.state());
@@ -59,6 +57,9 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   msg.concat((char*)payload, length);
   Serial.print("Received: ");
   Serial.println(msg);
+
+  // 只处理下行控制指令，忽略回执等其他消息
+  if (strstr(topic, "/thing/property/set") == NULL) return;
 
   StaticJsonDocument<256> doc;
   DeserializationError err = deserializeJson(doc, msg);
@@ -129,7 +130,6 @@ void reportStatus() {
 // ========== Arduino Setup ==========
 void setup() {
   Serial.begin(115200);
-  randomSeed(esp_random());
   delay(1000);
   Serial.println("\n=== ESP32S3 IoT Starting ===");
 
@@ -139,13 +139,15 @@ void setup() {
 
   // 初始化 I2C (SHT30)
   Wire.begin(21, 22);  // SDA=GPIO21, SCL=GPIO22
+  bool shtOk = false;
   int shtRetries = 0;
-  while (!sht30.begin(0x44) && shtRetries < 3) {
+  while (shtRetries < 3) {
+    if (sht30.begin(0x44)) { shtOk = true; break; }
     Serial.println("SHT30 init retry...");
     delay(1000);
     shtRetries++;
   }
-  if (!sht30.begin(0x44)) {
+  if (!shtOk) {
     Serial.println("SHT30 init failed! Will retry on each report.");
   } else {
     Serial.println("SHT30 OK");
