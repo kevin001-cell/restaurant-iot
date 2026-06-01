@@ -137,43 +137,38 @@ h1{text-align:center;font-size:22px;margin-bottom:6px;color:#e8734a}
 // ========== 配置 (部署时替换为实际值) ==========
 const PRODUCT_ID  = 'YOUR_PRODUCT_ID';
 const DEVICE_NAME = 'dining_hall_01';
-const DEVICE_SECRET = 'YOUR_DEVICE_SECRET';
+const DEVICE_KEY  = 'YOUR_DEVICE_KEY';
+const ACCESS_KEY  = 'YOUR_ACCESS_KEY';
 
 // 告警阈值
 const TEMP_ALERT_HIGH = 30;
 const HUM_ALERT_HIGH  = 80;
 
-// ========== MQTT 连接 ==========
-const wsUrl = `wss://${PRODUCT_ID}.iotcloud.tencentdevices.com/mqtt`;
+// ========== MQTT 连接 (OneNET WebSocket) ==========
+const wsUrl = `wss://mqtts.heclouds.com:8083/mqtt`;
 
-function genPassword() {
-  const connid = Math.floor(Math.random() * 90000 + 10000).toString();
-  const username = PRODUCT_ID + DEVICE_NAME + ';12010126;' + connid + ';0';
-  return { username, password: DEVICE_SECRET };
-}
-
-const auth = genPassword();
 const client = mqtt.connect(wsUrl, {
-  clientId: PRODUCT_ID + DEVICE_NAME,
-  username: auth.username,
-  password: auth.password,
+  clientId: DEVICE_NAME,
+  username: PRODUCT_ID,
+  password: DEVICE_KEY,
   keepalive: 120,
   reconnectPeriod: 5000
 });
 
-const TOPIC_UP   = `$thing/up/property/${PRODUCT_ID}/${DEVICE_NAME}`;
-const TOPIC_DOWN = `$thing/down/property/${PRODUCT_ID}/${DEVICE_NAME}`;
+// ========== OneNET Topic ==========
+const TOPIC_POST = `$sys/${PRODUCT_ID}/${DEVICE_NAME}/thing/property/post`;  // 订阅: 收设备上报
+const TOPIC_SET  = `$sys/${PRODUCT_ID}/${DEVICE_NAME}/thing/property/set`;   // 发布: 发LED指令
 
 client.on('connect', () => {
   document.getElementById('status').textContent = '在线';
   document.getElementById('status').className = 'status online';
-  client.subscribe(TOPIC_UP);
+  client.subscribe(TOPIC_POST);
 });
 
 client.on('message', (topic, payload) => {
   try {
     const msg = JSON.parse(payload.toString());
-    if (msg.method === 'report' && msg.params) {
+    if (msg.params) {
       updateDisplay(msg.params);
     }
   } catch(e) { console.error('MQTT message parse error:', e); }
@@ -190,10 +185,13 @@ client.on('error', (err) => {
 
 // ========== 更新显示 ==========
 function updateDisplay(params) {
-  const temp = typeof params.temperature === 'number' ? params.temperature : parseFloat(params.temperature);
-  const hum  = typeof params.humidity === 'number' ? params.humidity : parseFloat(params.humidity);
+  // OneNET 物模型嵌套格式: {"temperature": {"value": 25.3}}
+  const tempVal = params.temperature?.value;
+  const humVal  = params.humidity?.value;
+  const temp = typeof tempVal === 'number' ? tempVal : parseFloat(tempVal);
+  const hum  = typeof humVal === 'number' ? humVal : parseFloat(humVal);
 
-  if (params.temperature !== undefined) {
+  if (tempVal !== undefined && !isNaN(temp)) {
     document.getElementById('tempVal').textContent = temp.toFixed(1);
     const card = document.getElementById('tempCard');
     if (temp > TEMP_ALERT_HIGH) {
@@ -203,7 +201,7 @@ function updateDisplay(params) {
       card.classList.remove('warn');
     }
   }
-  if (params.humidity !== undefined) {
+  if (humVal !== undefined && !isNaN(hum)) {
     document.getElementById('humVal').textContent = Math.round(hum);
     const card = document.getElementById('humCard');
     if (hum > HUM_ALERT_HIGH) {
@@ -213,12 +211,12 @@ function updateDisplay(params) {
       card.classList.remove('warn');
     }
   }
-  if (params.led_switch !== undefined) {
-    updateLedUI(params.led_switch === 1, params.led_brightness || 0);
+  if (params.led_switch) {
+    updateLedUI(params.led_switch.value === 1, params.led_brightness?.value || 0);
   }
 
   // 更新历史数据
-  if (temp !== undefined && !isNaN(temp)) {
+  if (tempVal !== undefined && !isNaN(temp)) {
     const now = new Date();
     const label = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
     tempData.labels.push(label);
@@ -270,15 +268,14 @@ function sendLedCmd() {
   const brightness = parseInt(slider.value);
 
   const msg = {
-    method: 'control',
-    clientToken: Math.floor(Math.random() * 900000 + 100000).toString(),
+    id: Date.now().toString(),
     params: {
-      led_switch: state,
-      led_brightness: brightness
+      led_switch:      { value: state },
+      led_brightness:  { value: brightness }
     }
   };
 
-  client.publish(TOPIC_DOWN, JSON.stringify(msg));
+  client.publish(TOPIC_SET, JSON.stringify(msg));
   showToast(`已发送: LED ${state?'开':'关'}, 亮度 ${brightness}%`);
 }
 
@@ -290,6 +287,41 @@ function showToast(text) {
   el.style.display = 'block';
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+// ========== 历史数据 (OneNET HTTP API) ==========
+async function fetchHistory() {
+  const end   = new Date();
+  const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+  const url = `https://iot-api.heclouds.com/thing-history/${PRODUCT_ID}/${DEVICE_NAME}` +
+    `?start=${start.toISOString()}&end=${end.toISOString()}&limit=500`;
+
+  try {
+    const res = await fetch(url, {
+      headers: { 'Authorization': ACCESS_KEY }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    if (data.items && data.items.length > 0) {
+      // 清空已有的初始数据
+      tempData.labels = [];
+      tempData.datasets[0].data = [];
+      tempData.datasets[1].data = [];
+
+      data.items.forEach(item => {
+        const ts = new Date(item.timestamp);
+        const label = ts.getHours().toString().padStart(2,'0') + ':' +
+                      ts.getMinutes().toString().padStart(2,'0');
+        tempData.labels.push(label);
+        tempData.datasets[0].data.push(item.temperature?.value);
+        tempData.datasets[1].data.push(item.humidity?.value);
+      });
+      chart.update();
+    }
+  } catch (e) {
+    console.error('Failed to fetch history:', e);
+  }
 }
 
 // ========== 历史曲线 ==========
@@ -335,6 +367,11 @@ const chart = new Chart(ctx, {
 document.getElementById('brightness').addEventListener('input', function() {
   document.getElementById('bval').textContent = this.value + '%';
   updateLedUI(document.getElementById('ledBtn').textContent === 'ON', parseInt(this.value));
+});
+
+// ========== 页面加载: 查询历史数据 ==========
+window.addEventListener('DOMContentLoaded', () => {
+  fetchHistory();
 });
 </script>
 
