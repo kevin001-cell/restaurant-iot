@@ -202,11 +202,11 @@ function updateDisplay(params) {
     }
   }
   if (humVal !== undefined && !isNaN(hum)) {
-    document.getElementById('humVal').textContent = Math.round(hum);
+    document.getElementById('humVal').textContent = hum.toFixed(1);
     const card = document.getElementById('humCard');
     if (hum > HUM_ALERT_HIGH) {
       card.classList.add('warn');
-      showToast(`⚠️ 湿度过高: ${Math.round(hum)}% (阈值 ${HUM_ALERT_HIGH}%)`);
+      showToast(`⚠️ 湿度过高: ${hum.toFixed(1)}% (阈值 ${HUM_ALERT_HIGH}%)`);
     } else {
       card.classList.remove('warn');
     }
@@ -294,11 +294,11 @@ async function fetchHistory() {
   const end   = new Date();
   const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
   const url = `https://iot-api.heclouds.com/thing-history/${PRODUCT_ID}/${DEVICE_NAME}` +
-    `?start=${start.toISOString()}&end=${end.toISOString()}&limit=500`;
+    `?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}&limit=500`;
 
   try {
     const res = await fetch(url, {
-      headers: { 'Authorization': ACCESS_KEY }
+      headers: { 'access-key': ACCESS_KEY }
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -313,14 +313,18 @@ async function fetchHistory() {
         const ts = new Date(item.timestamp);
         const label = ts.getHours().toString().padStart(2,'0') + ':' +
                       ts.getMinutes().toString().padStart(2,'0');
+        // OneNET API 返回嵌套格式 {"temperature":{"value":25.3}} 或 平铺格式 {"temperature":25.3}
+        const tVal = item.temperature?.value ?? item.temperature;
+        const hVal = item.humidity?.value ?? item.humidity;
         tempData.labels.push(label);
-        tempData.datasets[0].data.push(item.temperature?.value);
-        tempData.datasets[1].data.push(item.humidity?.value);
+        tempData.datasets[0].data.push(tVal);
+        tempData.datasets[1].data.push(hVal);
       });
       chart.update();
     }
   } catch (e) {
     console.error('Failed to fetch history:', e);
+    showToast('历史数据加载失败，请稍后刷新');
   }
 }
 
