@@ -18,6 +18,9 @@ int    ledBrightness = 0;    // 0-100
 const int LED_PIN = 5;       // GPIO5 PWM 输出
 volatile bool statusReportPending = false;
 
+// ========== SHT30 状态 ==========
+bool shtAvailable = false;
+
 // ========== 上报计时 ==========
 unsigned long lastReportTime = 0;
 const unsigned long REPORT_INTERVAL = 60000;  // 60秒
@@ -25,7 +28,6 @@ const unsigned long REPORT_INTERVAL = 60000;  // 60秒
 // ========== MQTT Topic 拼接 ==========
 const String TOPIC_POST  = "$sys/" + String(PRODUCT_ID) + "/" + String(DEVICE_NAME) + "/thing/property/post";
 const String TOPIC_SET   = "$sys/" + String(PRODUCT_ID) + "/" + String(DEVICE_NAME) + "/thing/property/set";
-const String TOPIC_REPLY = "$sys/" + String(PRODUCT_ID) + "/" + String(DEVICE_NAME) + "/thing/property/post/reply";
 
 void reconnectMQTT() {
   while (!mqtt.connected()) {
@@ -83,6 +85,11 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
 // ========== 上报温湿度数据 ==========
 void reportTelemetry() {
+  if (!shtAvailable) {
+    Serial.println("SHT30 not available, skip read");
+    return;
+  }
+
   sht30.readBoth();
   float temp = sht30.readTemperature();
   float hum  = sht30.readHumidity();
@@ -124,7 +131,11 @@ void reportStatus() {
 
   String payload;
   serializeJson(doc, payload);
-  mqtt.publish(TOPIC_POST.c_str(), payload.c_str());
+  if (mqtt.publish(TOPIC_POST.c_str(), payload.c_str())) {
+    Serial.println("LED status reported");
+  } else {
+    Serial.println("Status publish failed");
+  }
 }
 
 // ========== Arduino Setup ==========
@@ -147,6 +158,7 @@ void setup() {
     delay(1000);
     shtRetries++;
   }
+  shtAvailable = shtOk;
   if (!shtOk) {
     Serial.println("SHT30 init failed! Will retry on each report.");
   } else {
