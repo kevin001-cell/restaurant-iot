@@ -153,7 +153,9 @@ const client = mqtt.connect(wsUrl, {
   username: PRODUCT_ID,
   password: MQTT_TOKEN,
   keepalive: 120,
-  reconnectPeriod: 5000
+  reconnectPeriod: 5000,
+  path: '/mqtt',
+  rejectUnauthorized: false
 });
 
 // ========== OneNET Topic ==========
