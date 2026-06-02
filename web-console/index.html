@@ -135,10 +135,10 @@ h1{text-align:center;font-size:22px;margin-bottom:6px;color:#e8734a}
 
 <script>
 // ========== 配置 (部署时替换为实际值) ==========
-const PRODUCT_ID  = 'YOUR_PRODUCT_ID';
+const PRODUCT_ID  = 'iPiq3XW929';
 const DEVICE_NAME = 'dining_hall_01';
-const DEVICE_KEY  = 'YOUR_DEVICE_KEY';
-const ACCESS_KEY  = 'YOUR_ACCESS_KEY';
+const DEVICE_KEY  = 'SmFsZmhGVWx6RWtGV3B6NEZQNEY1YklVUGd3YTdFMHM=';
+const ACCESS_KEY  = '33228735d1cf43d788c6f66f2508ca31';
 
 // 告警阈值
 const TEMP_ALERT_HIGH = 30;
@@ -212,7 +212,7 @@ function updateDisplay(params) {
     }
   }
   if (params.led_switch) {
-    updateLedUI(params.led_switch.value === 1, params.led_brightness?.value || 0);
+    updateLedUI(params.led_switch.value === 1, params.led_bright?.value || 0);
   }
 
   // 更新历史数据 (仅当温湿度均有效时才追加)
@@ -271,7 +271,7 @@ function sendLedCmd() {
     id: Date.now().toString(),
     params: {
       led_switch:      { value: state },
-      led_brightness:  { value: brightness }
+      led_bright:     { value: brightness }
     }
   };
 

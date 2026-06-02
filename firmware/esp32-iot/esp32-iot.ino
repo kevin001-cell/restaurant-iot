@@ -71,8 +71,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   if (params.containsKey("led_switch")) {
     ledState = params["led_switch"]["value"].as<int>() == 1;
   }
-  if (params.containsKey("led_brightness")) {
-    ledBrightness = params["led_brightness"]["value"].as<int>();
+  if (params.containsKey("led_bright")) {
+    ledBrightness = params["led_bright"]["value"].as<int>();
   }
 
   int pwmValue = ledState ? map(ledBrightness, 0, 100, 0, 255) : 0;
@@ -107,7 +107,7 @@ void reportTelemetry() {
   params.createNestedObject("temperature")["value"]     = round(temp * 10) / 10.0;  // 保留1位小数
   params.createNestedObject("humidity")["value"]        = round(hum);
   params.createNestedObject("led_switch")["value"]      = ledState ? 1 : 0;
-  params.createNestedObject("led_brightness")["value"]  = ledBrightness;
+  params.createNestedObject("led_bright")["value"]  = ledBrightness;
 
   String payload;
   serializeJson(doc, payload);
@@ -127,7 +127,7 @@ void reportStatus() {
   doc["id"] = id;
   JsonObject params = doc.createNestedObject("params");
   params.createNestedObject("led_switch")["value"]      = ledState ? 1 : 0;
-  params.createNestedObject("led_brightness")["value"]  = ledBrightness;
+  params.createNestedObject("led_bright")["value"]  = ledBrightness;
 
   String payload;
   serializeJson(doc, payload);
