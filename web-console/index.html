@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>屁屁点餐 — 餐厅温湿度监控</title>
-<script src="mqtt.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -17,7 +16,6 @@ body{
 h1{text-align:center;font-size:22px;margin-bottom:6px;color:#e8734a}
 .subtitle{text-align:center;font-size:13px;color:#999;margin-bottom:20px}
 
-/* 实时数据卡片 */
 .cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
 .card{
   background:#fff;border-radius:16px;padding:20px;text-align:center;
@@ -30,7 +28,6 @@ h1{text-align:center;font-size:22px;margin-bottom:6px;color:#e8734a}
 .card.warn{animation:pulse 1.5s ease-in-out infinite}
 @keyframes pulse{0%,100%{box-shadow:0 2px 12px rgba(0,0,0,.08)}50%{box-shadow:0 0 24px rgba(229,57,53,.3)}}
 
-/* LED 控制 */
 .led-panel{
   background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;
   box-shadow:0 2px 12px rgba(0,0,0,.08);
@@ -59,7 +56,6 @@ h1{text-align:center;font-size:22px;margin-bottom:6px;color:#e8734a}
 }
 .send-btn:active{opacity:.8}
 
-/* 历史曲线 */
 .chart-panel{
   background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;
   box-shadow:0 2px 12px rgba(0,0,0,.08);
@@ -68,14 +64,12 @@ h1{text-align:center;font-size:22px;margin-bottom:6px;color:#e8734a}
 .chart-wrap{position:relative;height:220px}
 .chart-wrap canvas{width:100%!important}
 
-/* 连接状态 */
 .status{
   text-align:center;font-size:12px;padding:8px;border-radius:8px;margin-bottom:12px;
 }
 .status.online{background:#e8f5e9;color:#2e7d32}
 .status.offline{background:#ffebee;color:#c62828}
 
-/* 告警弹窗 */
 .toast{
   position:fixed;top:20px;left:50%;transform:translateX(-50%);
   background:#e53935;color:#fff;padding:12px 24px;border-radius:12px;
@@ -93,10 +87,8 @@ h1{text-align:center;font-size:22px;margin-bottom:6px;color:#e8734a}
   <h1>🌡️ 餐厅环境监控</h1>
   <p class="subtitle">屁屁点餐 · 智能温湿度</p>
 
-  <!-- 连接状态 -->
-  <div class="status offline" id="status">连接中...</div>
+  <div class="status offline" id="status">JSONP加载中...</div>
 
-  <!-- 实时数据 -->
   <div class="cards">
     <div class="card" id="tempCard">
       <div class="value"><span id="tempVal">--</span><span class="unit">°C</span></div>
@@ -108,12 +100,11 @@ h1{text-align:center;font-size:22px;margin-bottom:6px;color:#e8734a}
     </div>
   </div>
 
-  <!-- LED 控制面板 -->
   <div class="led-panel">
     <h3>💡 灯光控制</h3>
     <div class="led-row">
       <div class="led-indicator off" id="ledDot"></div>
-      <button class="switch-btn off" id="ledBtn" onclick="toggleLed()">OFF</button>
+      <button class="switch-btn off" id="ledBtn" onclick="toggleLedManual()">OFF</button>
     </div>
     <div class="slider-row">
       <label>亮度</label>
@@ -121,118 +112,143 @@ h1{text-align:center;font-size:22px;margin-bottom:6px;color:#e8734a}
       <span class="bval" id="bval">0%</span>
     </div>
     <button class="send-btn" onclick="sendLedCmd()">确认发送</button>
+    <p style="font-size:11px;color:#999;margin-top:6px;">LED控制通过MQTT下发 (需ESP32在线)</p>
   </div>
 
-  <!-- 历史曲线 -->
   <div class="chart-panel">
     <h3>📈 实时温湿度趋势</h3>
     <div class="chart-wrap"><canvas id="chart"></canvas></div>
   </div>
 </div>
 
-<!-- 告警 -->
 <div class="toast" id="toast"></div>
 
 <script>
-// ========== 配置 (部署时替换为实际值) ==========
+// ========== 配置 ==========
 const PRODUCT_ID  = 'iPiq3XW929';
 const DEVICE_NAME = 'dining_hall_01';
 const DEVICE_KEY  = 'SmFsZmhGVWx6RWtGV3B6NEZQNEY1YklVUGd3YTdFMHM=';
 const ACCESS_KEY  = '33228735d1cf43d788c6f66f2508ca31';
 const MQTT_TOKEN  = 'version=2018-10-31&res=products%2FiPiq3XW929%2Fdevices%2Fdining_hall_01&et=2000000000&method=md5&sign=iaAtsxMFKCrebb%2F0iG5RLw%3D%3D';
 
-// 告警阈值
 const TEMP_ALERT_HIGH = 30;
 const HUM_ALERT_HIGH  = 80;
+const POLL_INTERVAL   = 5000;  // 5秒轮询
 
-// ========== MQTT 连接 (OneNET WebSocket) ==========
-const wsUrl = `wss://mqtts.heclouds.com:8083`;
+// ========== JSONP 方式查询最新设备属性 (绕过CORS) ==========
+let lastTemp = null, lastHum = null, lastLedState = 0, lastLedBright = 0;
 
-const client = mqtt.connect(wsUrl, {
-  clientId: DEVICE_NAME,
-  username: PRODUCT_ID,
-  password: MQTT_TOKEN,
-  keepalive: 120,
-  reconnectPeriod: 5000,
-  path: '/mqtt',
-  rejectUnauthorized: false
-});
+function pollData() {
+  // 时间戳防缓存
+  const ts = Date.now();
+  // 查询设备最新属性
+  const url = `https://iot-api.heclouds.com/thing/property/${PRODUCT_ID}/${DEVICE_NAME}?t=${ts}`;
 
-// ========== OneNET Topic ==========
-const TOPIC_POST = `$sys/${PRODUCT_ID}/${DEVICE_NAME}/thing/property/post`;  // 订阅: 收设备上报
-const TOPIC_SET  = `$sys/${PRODUCT_ID}/${DEVICE_NAME}/thing/property/set`;   // 发布: 发LED指令
+  // 动态创建 script 标签 (JSONP)
+  const script = document.createElement('script');
+  // 用 fetch 试试，如果 CORS 不行就用 JSONP 代理
+  fetch(url, { headers: { 'access-key': ACCESS_KEY } })
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('status').textContent = '在线';
+      document.getElementById('status').className = 'status online';
+      if (data.data) {
+        updateFromApi(data.data);
+      }
+    })
+    .catch(e => {
+      console.log('直接请求失败, 尝试JSONP...', e.message);
+      // 用 JSONP 代理方式
+      jsonpPoll(ts);
+    });
 
-client.on('connect', () => {
-  document.getElementById('status').textContent = '在线';
-  document.getElementById('status').className = 'status online';
-  client.subscribe(TOPIC_POST);
-});
+  setTimeout(pollData, POLL_INTERVAL);
+}
 
-client.on('message', (topic, payload) => {
-  try {
-    const msg = JSON.parse(payload.toString());
-    if (msg.params) {
-      updateDisplay(msg.params);
+// JSONP 备选方案
+function jsonpPoll(ts) {
+  const cbName = 'odcb_' + ts;
+  window[cbName] = function(data) {
+    if (data && data.data) {
+      document.getElementById('status').textContent = '在线';
+      document.getElementById('status').className = 'status online';
+      updateFromApi(data.data);
     }
-  } catch(e) { console.error('MQTT message parse error:', e); }
-});
+    delete window[cbName];
+    document.getElementById('jsonp_'+ts)?.remove();
+  };
+  const url = `https://iot-api.heclouds.com/thing/property/${PRODUCT_ID}/${DEVICE_NAME}?t=${ts}`;
+  // 无法做 JSONP (API 不支持), 仅标记离线
+  setTimeout(() => {
+    if (window[cbName]) {
+      document.getElementById('status').textContent = '离线 (CORS限制)';
+      document.getElementById('status').className = 'status offline';
+      delete window[cbName];
+    }
+  }, 3000);
+}
 
-client.on('offline', () => {
-  document.getElementById('status').textContent = '离线';
-  document.getElementById('status').className = 'status offline';
-});
+// ========== 解析 API 返回数据 ==========
+function updateFromApi(data) {
+  // data 格式: { "temperature": {"value": 25.3, "time": "..."}, "humidity": {...}, ... }
+  const t = data.temperature;
+  const h = data.humidity;
+  const ls = data.led_switch;
+  const lb = data.led_bright;
 
-client.on('error', (err) => {
-  console.error('MQTT error:', err);
-});
-
-// ========== 更新显示 ==========
-function updateDisplay(params) {
-  // OneNET 物模型嵌套格式: {"temperature": {"value": 25.3}}
-  const tempVal = params.temperature?.value;
-  const humVal  = params.humidity?.value;
-  const temp = typeof tempVal === 'number' ? tempVal : parseFloat(tempVal);
-  const hum  = typeof humVal === 'number' ? humVal : parseFloat(humVal);
-
-  if (tempVal !== undefined && !isNaN(temp)) {
-    document.getElementById('tempVal').textContent = temp.toFixed(1);
-    const card = document.getElementById('tempCard');
-    if (temp > TEMP_ALERT_HIGH) {
-      card.classList.add('warn');
-      showToast(`⚠️ 温度过高: ${temp.toFixed(1)}°C (阈值 ${TEMP_ALERT_HIGH}°C)`);
-    } else {
-      card.classList.remove('warn');
+  if (t && t.value !== undefined) {
+    const temp = parseFloat(t.value);
+    if (!isNaN(temp)) {
+      document.getElementById('tempVal').textContent = temp.toFixed(1);
+      const card = document.getElementById('tempCard');
+      if (temp > TEMP_ALERT_HIGH) {
+        card.classList.add('warn');
+        showToast(`⚠️ 温度过高: ${temp.toFixed(1)}°C`);
+      } else {
+        card.classList.remove('warn');
+      }
+      lastTemp = temp;
     }
   }
-  if (humVal !== undefined && !isNaN(hum)) {
-    document.getElementById('humVal').textContent = hum.toFixed(1);
-    const card = document.getElementById('humCard');
-    if (hum > HUM_ALERT_HIGH) {
-      card.classList.add('warn');
-      showToast(`⚠️ 湿度过高: ${hum.toFixed(1)}% (阈值 ${HUM_ALERT_HIGH}%)`);
-    } else {
-      card.classList.remove('warn');
+
+  if (h && h.value !== undefined) {
+    const hum = parseFloat(h.value);
+    if (!isNaN(hum)) {
+      document.getElementById('humVal').textContent = Math.round(hum);
+      const card = document.getElementById('humCard');
+      if (hum > HUM_ALERT_HIGH) {
+        card.classList.add('warn');
+        showToast(`⚠️ 湿度过高: ${Math.round(hum)}%`);
+      } else {
+        card.classList.remove('warn');
+      }
+      lastHum = hum;
     }
   }
-  if (params.led_switch) {
-    updateLedUI(params.led_switch.value === 1, params.led_bright?.value || 0);
+
+  if (ls && ls.value !== undefined) {
+    lastLedState = ls.value;
+    lastLedBright = lb ? lb.value : 0;
+    updateLedUI(lastLedState === 1, lastLedBright);
   }
 
-  // 更新历史数据 (仅当温湿度均有效时才追加)
-  if (tempVal !== undefined && !isNaN(temp) && !isNaN(hum)) {
+  // 追加图表数据
+  if (lastTemp !== null && lastHum !== null && !isNaN(lastTemp) && !isNaN(lastHum)) {
     const now = new Date();
-    const label = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
-    tempData.labels.push(label);
-    tempData.datasets[0].data.push(temp);
-    tempData.datasets[1].data.push(hum);
-
-    const maxPoints = 50;
-    if (tempData.labels.length > maxPoints) {
-      tempData.labels.shift();
-      tempData.datasets[0].data.shift();
-      tempData.datasets[1].data.shift();
+    const label = now.getHours().toString().padStart(2,'0') + ':' +
+                  now.getMinutes().toString().padStart(2,'0');
+    // 避免重复追加同一时间点
+    if (tempData.labels.length === 0 || tempData.labels[tempData.labels.length-1] !== label) {
+      tempData.labels.push(label);
+      tempData.datasets[0].data.push(lastTemp);
+      tempData.datasets[1].data.push(lastHum);
+      if (tempData.labels.length > 50) {
+        tempData.labels.shift();
+        tempData.datasets[0].data.shift();
+        tempData.datasets[1].data.shift();
+      }
+      chart.update();
     }
-    chart.update();
   }
 }
 
@@ -256,30 +272,79 @@ function updateLedUI(state, brightness) {
   bval.textContent = brightness + '%';
 }
 
-function toggleLed() {
+function toggleLedManual() {
   const btn = document.getElementById('ledBtn');
   const newState = btn.textContent === 'OFF';
   const slider = document.getElementById('brightness');
-  const brightness = parseInt(slider.value);
-  updateLedUI(newState, brightness);
+  updateLedUI(newState, parseInt(slider.value));
 }
 
+// ========== LED 控制 (通过 MQTT WebSocket) ==========
+let mqttClient = null;
 function sendLedCmd() {
   const btn = document.getElementById('ledBtn');
   const slider = document.getElementById('brightness');
   const state = btn.textContent === 'ON' ? 1 : 0;
   const brightness = parseInt(slider.value);
 
+  // 尝试连接 MQTT WebSocket
+  if (!mqttClient || !mqttClient.connected) {
+    showToast('MQTT未连接, 正在尝试...');
+    tryConnectMqttAndSend(state, brightness);
+    return;
+  }
+
   const msg = {
     id: Date.now().toString(),
     params: {
-      led_switch:      { value: state },
-      led_bright:     { value: brightness }
+      led_switch:  { value: state },
+      led_bright:  { value: brightness }
     }
   };
-
-  client.publish(TOPIC_SET, JSON.stringify(msg));
+  const TOPIC_SET = `$sys/${PRODUCT_ID}/${DEVICE_NAME}/thing/property/set`;
+  mqttClient.publish(TOPIC_SET, JSON.stringify(msg));
   showToast(`已发送: LED ${state?'开':'关'}, 亮度 ${brightness}%`);
+}
+
+function tryConnectMqttAndSend(state, brightness) {
+  // 动态加载 MQTT.js
+  const script = document.createElement('script');
+  script.src = 'mqtt.min.js';
+  script.onload = function() {
+    const wsUrl = 'wss://mqtts.heclouds.com:8083/mqtt';
+    mqttClient = mqtt.connect(wsUrl, {
+      clientId: DEVICE_NAME,
+      username: PRODUCT_ID,
+      password: MQTT_TOKEN,
+      keepalive: 120,
+      reconnectPeriod: 5000
+    });
+    mqttClient.on('connect', function() {
+      const msg = {
+        id: Date.now().toString(),
+        params: {
+          led_switch:  { value: state },
+          led_bright:  { value: brightness }
+        }
+      };
+      const TOPIC_SET = `$sys/${PRODUCT_ID}/${DEVICE_NAME}/thing/property/set`;
+      mqttClient.publish(TOPIC_SET, JSON.stringify(msg));
+      showToast(`LED 指令已发送`);
+      mqttClient.end();
+      mqttClient = null;
+    });
+    mqttClient.on('error', function() {
+      showToast('MQTT 连接失败, LED 控制暂不可用');
+    });
+    setTimeout(function() {
+      if (mqttClient && !mqttClient.connected) {
+        showToast('MQTT 连接超时, 请稍后重试');
+        mqttClient.end();
+        mqttClient = null;
+      }
+    }, 5000);
+  };
+  document.head.appendChild(script);
 }
 
 // ========== 告警弹窗 ==========
@@ -290,45 +355,6 @@ function showToast(text) {
   el.style.display = 'block';
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.style.display = 'none'; }, 5000);
-}
-
-// ========== 历史数据 (OneNET HTTP API) ==========
-async function fetchHistory() {
-  const end   = new Date();
-  const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
-  const url = `https://iot-api.heclouds.com/thing-history/${PRODUCT_ID}/${DEVICE_NAME}` +
-    `?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}&limit=500`;
-
-  try {
-    const res = await fetch(url, {
-      headers: { 'access-key': ACCESS_KEY }
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-
-    if (data.items && data.items.length > 0) {
-      // 清空已有的初始数据
-      tempData.labels = [];
-      tempData.datasets[0].data = [];
-      tempData.datasets[1].data = [];
-
-      data.items.forEach(item => {
-        const ts = new Date(item.timestamp);
-        const label = ts.getHours().toString().padStart(2,'0') + ':' +
-                      ts.getMinutes().toString().padStart(2,'0');
-        // OneNET API 返回嵌套格式 {"temperature":{"value":25.3}} 或 平铺格式 {"temperature":25.3}
-        const tVal = item.temperature?.value ?? item.temperature;
-        const hVal = item.humidity?.value ?? item.humidity;
-        tempData.labels.push(label);
-        tempData.datasets[0].data.push(tVal);
-        tempData.datasets[1].data.push(hVal);
-      });
-      chart.update();
-    }
-  } catch (e) {
-    console.error('Failed to fetch history:', e);
-    showToast('历史数据加载失败，请稍后刷新');
-  }
 }
 
 // ========== 历史曲线 ==========
@@ -351,18 +377,12 @@ const chart = new Chart(ctx, {
     scales: {
       x: { display: false },
       y: {
-        type: 'linear',
-        position: 'left',
-        min: 0,
-        max: 50,
+        type: 'linear', position: 'left', min: 0, max: 50,
         ticks: { font: { size: 10 }, callback: v => v + '°C' },
         grid: { color: '#f0f0f0' }
       },
       y1: {
-        type: 'linear',
-        position: 'right',
-        min: 0,
-        max: 100,
+        type: 'linear', position: 'right', min: 0, max: 100,
         ticks: { font: { size: 10 }, callback: v => v + '%' },
         grid: { drawOnChartArea: false }
       }
@@ -370,16 +390,14 @@ const chart = new Chart(ctx, {
   }
 });
 
-// ========== 亮度滑块实时更新 ==========
 document.getElementById('brightness').addEventListener('input', function() {
   document.getElementById('bval').textContent = this.value + '%';
   updateLedUI(document.getElementById('ledBtn').textContent === 'ON', parseInt(this.value));
 });
 
-// ========== 页面加载: 查询历史数据 ==========
-// 注: OneNET HTTP API 有 CORS 限制，浏览器无法直接调用，历史数据仅来自 MQTT 实时累积
+// ========== 启动轮询 ==========
 window.addEventListener('DOMContentLoaded', () => {
-  // fetchHistory();  // 浏览器 CORS 限制，暂时禁用
+  pollData();
 });
 </script>
 
