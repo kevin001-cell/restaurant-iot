@@ -139,6 +139,7 @@ const PRODUCT_ID  = 'iPiq3XW929';
 const DEVICE_NAME = 'dining_hall_01';
 const DEVICE_KEY  = 'SmFsZmhGVWx6RWtGV3B6NEZQNEY1YklVUGd3YTdFMHM=';
 const ACCESS_KEY  = '33228735d1cf43d788c6f66f2508ca31';
+const MQTT_TOKEN  = 'version=2018-10-31&res=products%2FiPiq3XW929%2Fdevices%2Fdining_hall_01&et=2000000000&method=md5&sign=iaAtsxMFKCrebb%2F0iG5RLw%3D%3D';
 
 // 告警阈值
 const TEMP_ALERT_HIGH = 30;
@@ -150,7 +151,7 @@ const wsUrl = `wss://mqtts.heclouds.com:8083/mqtt`;
 const client = mqtt.connect(wsUrl, {
   clientId: DEVICE_NAME,
   username: PRODUCT_ID,
-  password: DEVICE_KEY,
+  password: MQTT_TOKEN,
   keepalive: 120,
   reconnectPeriod: 5000
 });
