@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>屁屁点餐 — 餐厅温湿度监控</title>
-<script src="https://unpkg.com/mqtt@5.6.3/dist/mqtt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.6.3/dist/mqtt.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -146,7 +146,7 @@ const TEMP_ALERT_HIGH = 30;
 const HUM_ALERT_HIGH  = 80;
 
 // ========== MQTT 连接 (OneNET WebSocket) ==========
-const wsUrl = `wss://mqtts.heclouds.com:8083/mqtt`;
+const wsUrl = `wss://mqttstls.heclouds.com:8883/mqtt`;
 
 const client = mqtt.connect(wsUrl, {
   clientId: DEVICE_NAME,
