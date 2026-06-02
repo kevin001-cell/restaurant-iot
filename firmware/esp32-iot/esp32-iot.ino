@@ -36,7 +36,7 @@ void reconnectMQTT() {
     // OneNET 认证: username=product_id, password=device_key
     String clientId = DEVICE_NAME;
     String username = PRODUCT_ID;
-    String password = DEVICE_KEY;
+    String password = MQTT_TOKEN;
 
     if (mqtt.connect(clientId.c_str(), username.c_str(), password.c_str())) {
       Serial.println("connected");
@@ -90,11 +90,8 @@ void reportTelemetry() {
     return;
   }
 
-  sht30.readBoth();
-  float temp = sht30.readTemperature();
-  float hum  = sht30.readHumidity();
-
-  if (isnan(temp) || isnan(hum)) {
+  float temp, hum;
+  if (!sht30.readBoth(&temp, &hum)) {
     Serial.println("SHT30 read error");
     return;
   }
@@ -141,7 +138,9 @@ void reportStatus() {
 // ========== Arduino Setup ==========
 void setup() {
   Serial.begin(115200);
-  delay(1000);
+  // 等待 USB CDC 串口就绪
+  int waitSerial = 0;
+  while (!Serial && waitSerial < 50) { delay(100); waitSerial++; }
   Serial.println("\n=== ESP32S3 IoT Starting ===");
 
   // 初始化 LED
@@ -149,7 +148,7 @@ void setup() {
   analogWrite(LED_PIN, 0);
 
   // 初始化 I2C (SHT30)
-  Wire.begin(21, 22);  // SDA=GPIO21, SCL=GPIO22
+  Wire.begin(15, 16);  // SDA=GPIO15, SCL=GPIO16
   bool shtOk = false;
   int shtRetries = 0;
   while (shtRetries < 3) {

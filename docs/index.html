@@ -146,7 +146,7 @@ const TEMP_ALERT_HIGH = 30;
 const HUM_ALERT_HIGH  = 80;
 
 // ========== MQTT 连接 (OneNET WebSocket) ==========
-const wsUrl = `wss://mqttstls.heclouds.com:8883/mqtt`;
+const wsUrl = `wss://mqtts.heclouds.com:8083/mqtt`;
 
 const client = mqtt.connect(wsUrl, {
   clientId: DEVICE_NAME,
@@ -375,8 +375,9 @@ document.getElementById('brightness').addEventListener('input', function() {
 });
 
 // ========== 页面加载: 查询历史数据 ==========
+// 注: OneNET HTTP API 有 CORS 限制，浏览器无法直接调用，历史数据仅来自 MQTT 实时累积
 window.addEventListener('DOMContentLoaded', () => {
-  fetchHistory();
+  // fetchHistory();  // 浏览器 CORS 限制，暂时禁用
 });
 </script>
 
