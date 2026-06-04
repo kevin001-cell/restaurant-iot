@@ -203,6 +203,15 @@ void handleHttpClient() {
 
   // ---- GET /api/telemetry ----
   if (line.startsWith("GET /api/telemetry")) {
+    // 实时读取传感器 (不依赖60秒上报缓存)
+    if (shtAvailable) {
+      float t, h;
+      if (sht30.readBoth(&t, &h)) {
+        lastTemp = round(t * 10) / 10.0;
+        lastHum  = round(h);
+        hasReadings = true;
+      }
+    }
     String json = "{\"temp\":" + String(lastTemp, 1) + ",\"hum\":" + String((int)lastHum) +
                   ",\"led\":" + String(ledState ? 1 : 0) + ",\"bright\":" + String(ledBrightness) + "}";
     client.println("HTTP/1.1 200 OK");
