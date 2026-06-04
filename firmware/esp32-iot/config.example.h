@@ -17,4 +17,10 @@
 #define MQTT_BROKER     PRODUCT_ID ".st1.iot.iotdas.10086.cn"
 #define MQTT_PORT       1883
 
+// 公共 MQTT Broker (用于 Web 控制台实时通信)
+#define PUB_BROKER      "broker.emqx.io"
+#define PUB_PORT        1883
+#define PUB_TOPIC_TELEMETRY  "restaurant/telemetry"
+#define PUB_TOPIC_CONTROL    "restaurant/control"
+
 #endif
