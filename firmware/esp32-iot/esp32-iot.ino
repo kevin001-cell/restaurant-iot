@@ -12,6 +12,10 @@ Adafruit_SHT31 sht30 = Adafruit_SHT31();
 WiFiClient wifiClient;
 PubSubClient mqtt(wifiClient);
 
+// 公共 MQTT Broker (Web 控制台中继)
+WiFiClient pubWifiClient;
+PubSubClient pubMqtt(pubWifiClient);
+
 // ========== LED 状态 ==========
 bool   ledState = false;
 int    ledBrightness = 0;    // 0-100
@@ -51,6 +55,55 @@ void reconnectMQTT() {
       delay(5000);
     }
   }
+}
+
+// ========== 公共 MQTT Broker 重连 ==========
+void reconnectPubMQTT() {
+  while (!pubMqtt.connected()) {
+    Serial.print("Pub MQTT connecting...");
+    // 公共 broker 无需认证
+    String clientId = String(DEVICE_NAME) + "_" + String(random(1000, 9999));
+    if (pubMqtt.connect(clientId.c_str())) {
+      Serial.println("connected");
+      pubMqtt.subscribe(PUB_TOPIC_CONTROL);
+      Serial.print("Subscribed: ");
+      Serial.println(PUB_TOPIC_CONTROL);
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(pubMqtt.state());
+      Serial.println(" retrying in 10s");
+      delay(10000);
+    }
+  }
+}
+
+// ========== 公共 MQTT 控制回调 ==========
+void pubMqttCallback(char* topic, byte* payload, unsigned int length) {
+  // 只处理控制指令
+  if (strstr(topic, PUB_TOPIC_CONTROL) == NULL) return;
+
+  String msg;
+  msg.concat((char*)payload, length);
+  Serial.print("Pub control received: ");
+  Serial.println(msg);
+
+  StaticJsonDocument<128> doc;
+  DeserializationError err = deserializeJson(doc, msg);
+  if (err) return;
+
+  if (doc.containsKey("led")) {
+    ledState = doc["led"].as<int>() == 1;
+  }
+  if (doc.containsKey("bright")) {
+    ledBrightness = doc["bright"].as<int>();
+  }
+
+  int pwmValue = ledState ? map(ledBrightness, 0, 100, 0, 255) : 0;
+  analogWrite(LED_PIN, pwmValue);
+  Serial.printf("LED: %s, brightness: %d%%\n", ledState ? "ON" : "OFF", ledBrightness);
+
+  // 延迟上报状态
+  statusReportPending = true;
 }
 
 // ========== MQTT 消息回调 (接收云端下发的 LED 控制指令) ==========
@@ -114,6 +167,16 @@ void reportTelemetry() {
   } else {
     Serial.println("Publish failed");
   }
+
+  // 同时向公共 broker 推送简化格式 (Web 控制台实时数据)
+  StaticJsonDocument<128> pubDoc;
+  pubDoc["temp"]   = round(temp * 10) / 10.0;
+  pubDoc["hum"]    = round(hum);
+  pubDoc["led"]    = ledState ? 1 : 0;
+  pubDoc["bright"] = ledBrightness;
+  String pubPayload;
+  serializeJson(pubDoc, pubPayload);
+  pubMqtt.publish(PUB_TOPIC_TELEMETRY, pubPayload.c_str());
 }
 
 // ========== 上报 LED 状态回执 ==========
@@ -185,6 +248,11 @@ void setup() {
   mqtt.setServer(MQTT_BROKER, MQTT_PORT);
   mqtt.setCallback(mqttCallback);
   reconnectMQTT();
+
+  // 初始化公共 MQTT Broker (Web 控制台中继)
+  pubMqtt.setServer(PUB_BROKER, PUB_PORT);
+  pubMqtt.setCallback(pubMqttCallback);
+  reconnectPubMQTT();
 }
 
 // ========== Arduino Loop ==========
@@ -193,6 +261,11 @@ void loop() {
     reconnectMQTT();
   }
   mqtt.loop();
+
+  if (!pubMqtt.connected()) {
+    reconnectPubMQTT();
+  }
+  pubMqtt.loop();
 
   // 延迟状态上报 (从回调中推迟到 loop)
   if (statusReportPending) {
