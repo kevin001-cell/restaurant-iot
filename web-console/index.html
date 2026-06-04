@@ -125,6 +125,31 @@ h1{text-align:center;font-size:22px;margin-bottom:6px;color:#e8734a}
 <div class="toast" id="toast"></div>
 
 <script>
+// ========== 原始 WebSocket 连通性测试 ==========
+var testWs = new WebSocket('ws://broker.emqx.io:8083/', 'mqtt');
+testWs.onopen = function() {
+  document.getElementById('status').textContent = 'WS测试: 已连接!';
+  document.getElementById('status').className = 'status online';
+  testWs.close();
+  // 连通后再启动 MQTT
+  startMqtt();
+};
+testWs.onerror = function(e) {
+  document.getElementById('status').textContent = 'WS测试: 连接失败! (浏览器层面不通)';
+  document.getElementById('status').className = 'status offline';
+};
+testWs.onclose = function(e) {
+  if (document.getElementById('status').textContent.indexOf('WS测试') === -1) {
+    document.getElementById('status').textContent = 'WS测试: close code=' + e.code;
+  }
+};
+setTimeout(function() {
+  if (testWs.readyState === 0) {
+    document.getElementById('status').textContent = 'WS测试: 超时 (readyState=0)';
+    testWs.close();
+  }
+}, 5000);
+
 // ========== 配置 ==========
 const PUB_BROKER_WS  = 'ws://broker.emqx.io:8083/';
 const TOPIC_TELEMETRY = 'restaurant/telemetry';
@@ -135,21 +160,22 @@ const HUM_ALERT_HIGH  = 80;
 
 let lastTemp = null, lastHum = null, lastLedState = 0, lastLedBright = 0;
 
-// ========== 检查 MQTT.js 是否加载 ==========
-if (typeof mqtt === 'undefined') {
-  document.getElementById('status').textContent = '错误: mqtt.min.js 未加载';
-  document.getElementById('status').className = 'status offline';
-  throw new Error('mqtt.min.js not loaded');
-}
-
 // ========== MQTT 连接 (WebSocket) ==========
-document.getElementById('status').textContent = '正在连接 ' + PUB_BROKER_WS + '...';
-const mqttClient = mqtt.connect(PUB_BROKER_WS, {
-  clientId: 'web_' + Math.random().toString(16).slice(2, 10),
-  keepalive: 60,
-  reconnectPeriod: 3000,
-  connectTimeout: 10000
-});
+var mqttClient;
+function startMqtt() {
+  if (typeof mqtt === 'undefined') {
+    document.getElementById('status').textContent = '错误: mqtt.min.js 未加载';
+    document.getElementById('status').className = 'status offline';
+    return;
+  }
+
+  document.getElementById('status').textContent = '正在连接 MQTT...';
+  mqttClient = mqtt.connect(PUB_BROKER_WS, {
+    clientId: 'web_' + Math.random().toString(16).slice(2, 10),
+    keepalive: 60,
+    reconnectPeriod: 3000,
+    connectTimeout: 10000
+  });
 
 mqttClient.on('connect', function() {
   console.log('MQTT WebSocket connected');
@@ -190,6 +216,7 @@ mqttClient.on('reconnect', function() {
 mqttClient.on('close', function() {
   console.log('MQTT close');
 });
+} // end startMqtt()
 
 // ========== 解析遥测数据 ==========
 function updateFromTelemetry(data) {
