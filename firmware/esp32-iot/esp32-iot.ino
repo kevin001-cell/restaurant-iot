@@ -38,7 +38,6 @@ const String TOPIC_SET   = "$sys/" + String(PRODUCT_ID) + "/" + String(DEVICE_NA
 // ========== 内嵌 Web 页面 ==========
 const char HTML_PAGE[] PROGMEM = R"=====(
 <!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>餐厅温湿度</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#fff3e0,#ffe0b2);min-height:100vh;padding:16px;color:#333}.container{max-width:480px;margin:0 auto}h1{text-align:center;font-size:22px;margin-bottom:4px;color:#e8734a}.subtitle{text-align:center;font-size:13px;color:#999;margin-bottom:16px}.cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}.card{background:#fff;border-radius:16px;padding:20px;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,.08)}.card .value{font-size:48px;font-weight:700;color:#e8734a}.card .unit{font-size:16px;color:#e8734a}.card .label{font-size:13px;color:#999;margin-top:4px}.card.warn .value{color:#e53935}.card.warn{animation:pulse 1.5s ease-in-out infinite}@keyframes pulse{0%,100%{box-shadow:0 2px 12px rgba(0,0,0,.08)}50%{box-shadow:0 0 24px rgba(229,57,53,.3)}}.led-panel{background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,.08)}.led-panel h3{font-size:16px;margin-bottom:12px;color:#555}.led-row{display:flex;align-items:center;gap:12px;margin-bottom:12px}.led-dot{width:16px;height:16px;border-radius:50%;background:#ccc;transition:background .3s,box-shadow .3s}.led-dot.on{background:#ff9800;box-shadow:0 0 12px rgba(255,152,0,.6)}.led-btn{flex:1;padding:10px;border:none;border-radius:10px;font-size:16px;font-weight:600;color:#fff;cursor:pointer;transition:all .2s}.led-btn.on{background:#ff9800}.led-btn.off{background:#bdbdbd}.slider-row{display:flex;align-items:center;gap:10px}.slider-row label{font-size:13px;color:#888;white-space:nowrap}.slider-row input[type=range]{flex:1;accent-color:#e8734a}.slider-row span{width:40px;text-align:center;font-weight:600;color:#e8734a}.send-btn{margin-top:12px;width:100%;padding:12px;border:none;border-radius:10px;background:#e8734a;color:#fff;font-size:16px;font-weight:600;cursor:pointer}.send-btn:active{opacity:.8}.chart-panel{background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,.08)}.chart-panel h3{font-size:16px;margin-bottom:8px;color:#555}.chart-wrap{position:relative;height:200px}.chart-wrap canvas{width:100%!important}.status{text-align:center;font-size:12px;padding:8px;border-radius:8px;margin-bottom:12px}.status.online{background:#e8f5e9;color:#2e7d32}.status.offline{background:#ffebee;color:#c62828}.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 24px;border-radius:12px;font-size:14px;font-weight:600;z-index:999;box-shadow:0 4px 20px rgba(0,0,0,.3);animation:slideDown .3s ease-out;display:none}@keyframes slideDown{from{transform:translateX(-50%) translateY(-60px);opacity:0}to{transform:translateX(-50%) translateY(0);opacity:1}}</style></head><body>
 <div class="container"><h1>餐厅环境监控</h1><p class="subtitle">屁屁点餐 · 智能温湿度</p>
 <div class="status offline" id="status">连接中...</div>
@@ -51,17 +50,20 @@ const char HTML_PAGE[] PROGMEM = R"=====(
 <div class="chart-panel"><h3>温湿度趋势</h3><div class="chart-wrap"><canvas id="chart"></canvas></div></div></div>
 <div class="toast" id="toast"></div>
 <script>
-var L=0,B=0,on=false;
+var L=0,B=0,on=false,C=null,D=[],T=[],H=[];
+
+// 核心轮询 — 不依赖 Chart.js
 function P(){fetch('/api/telemetry').then(function(r){return r.json()}).then(function(d){
-document.getElementById('status').textContent='在线';document.getElementById('status').className='status online';
+var s=document.getElementById('status');s.textContent='在线';s.className='status online';
 var t=d.temp,h=d.hum;document.getElementById('tv').textContent=t.toFixed(1);
 document.getElementById('hv').textContent=Math.round(h);
 document.getElementById('tempCard').classList.toggle('warn',t>30);
 document.getElementById('humCard').classList.toggle('warn',h>80);
 if(!on||d.led!=L||d.bright!=B){L=d.led;B=d.bright;U(L==1,B);}
-var dt=new Date();var lb=String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');
-if(D.length==0||D[D.length-1]!==lb){D.push(lb);T.push(t);H.push(h);if(D.length>50){D.shift();T.shift();H.shift()}C.update();}
-}).catch(function(e){document.getElementById('status').textContent='离线';document.getElementById('status').className='status offline';});setTimeout(P,5000);}
+if(C){var dt=new Date();var lb=String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');
+if(D.length==0||D[D.length-1]!==lb){D.push(lb);T.push(t);H.push(h);if(D.length>50){D.shift();T.shift();H.shift()}C.update();}}
+}).catch(function(e){var s=document.getElementById('status');s.textContent='离线';s.className='status offline';});setTimeout(P,5000);}
+
 function U(s,b){document.getElementById('ld').className='led-dot'+(s?' on':'');document.getElementById('lbtn').textContent=s?'ON':'OFF';document.getElementById('lbtn').className='led-btn'+(s?' on':' off');document.getElementById('bri').value=b;document.getElementById('bval').textContent=b+'%';}
 function tL(){U(document.getElementById('lbtn').textContent==='OFF',parseInt(document.getElementById('bri').value));on=true;}
 function sC(){var s=document.getElementById('lbtn').textContent==='ON'?1:0;var b=parseInt(document.getElementById('bri').value);
@@ -69,14 +71,23 @@ fetch('/api/control',{method:'POST',headers:{'Content-Type':'application/json'},
 on=false;S('已发送: LED '+(s?'开':'关')+', 亮度 '+b+'%');}).catch(function(){S('发送失败');});}
 function S(t){var e=document.getElementById('toast');e.textContent=t;e.style.display='block';clearTimeout(window._tt);window._tt=setTimeout(function(){e.style.display='none';},3000);}
 document.getElementById('bri').addEventListener('input',function(){on=false;document.getElementById('bval').textContent=this.value+'%';U(document.getElementById('lbtn').textContent==='ON',parseInt(this.value));});
-var D=[],T=[],H=[];
-var C=new Chart(document.getElementById('chart').getContext('2d'),{type:'line',data:{labels:D,datasets:[
+
+// 启动轮询 (不依赖 Chart.js)
+P();
+
+// 尝试加载 Chart.js (非阻塞)
+var cs=document.createElement('script');
+cs.src='https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+cs.onload=function(){
+C=new Chart(document.getElementById('chart').getContext('2d'),{type:'line',data:{labels:D,datasets:[
 {label:'温度 C',data:T,borderColor:'#e8734a',backgroundColor:'rgba(232,115,74,.1)',tension:0.4,fill:true,yAxisID:'y'},
 {label:'湿度 %',data:H,borderColor:'#42a5f5',backgroundColor:'rgba(66,165,245,.1)',tension:0.4,fill:true,yAxisID:'y1'}]},
 options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:16,font:{size:11}}}},
 scales:{x:{display:false},y:{type:'linear',position:'left',min:0,max:50,ticks:{font:{size:10},callback:function(v){return v+' C'}},grid:{color:'#f0f0f0'}},
 y1:{type:'linear',position:'right',min:0,max:100,ticks:{font:{size:10},callback:function(v){return v+'%'}},grid:{drawOnChartArea:false}}}}});
-P();
+};
+cs.onerror=function(){document.getElementById('chart').parentElement.innerHTML='<p style=text-align:center;color:#999;padding:40px>Chart.js 加载失败<br>(CDN 不可用)</p>';};
+document.head.appendChild(cs);
 </script></body></html>
 )=====";
 
