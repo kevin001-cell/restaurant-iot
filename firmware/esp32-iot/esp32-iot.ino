@@ -36,6 +36,13 @@ const String TOPIC_SET   = "$sys/" + String(PRODUCT_ID) + "/" + String(DEVICE_NA
 
 void reconnectMQTT() {
   while (!mqtt.connected()) {
+    // 先确认 WiFi 还在
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("WiFi lost, waiting...");
+      delay(3000);
+      return;
+    }
+
     Serial.print("MQTT connecting...");
 
     // OneNET 认证: username=product_id, password=device_key
@@ -50,8 +57,15 @@ void reconnectMQTT() {
       Serial.print("Subscribed: ");
       Serial.println(TOPIC_SET);
     } else {
+      int rc = mqtt.state();
       Serial.print("failed, rc=");
-      Serial.print(mqtt.state());
+      Serial.print(rc);
+      // rc=-2: TCP连接失败, -1: 连接超时, 0: 已连接
+      if (rc == -2) {
+        Serial.print(" (TCP failed)");
+      } else if (rc == -1) {
+        Serial.print(" (timeout)");
+      }
       Serial.println(" retrying in 5s");
       delay(5000);
     }
@@ -248,11 +262,13 @@ void setup() {
   // 初始化 MQTT
   mqtt.setServer(MQTT_BROKER, MQTT_PORT);
   mqtt.setCallback(mqttCallback);
+  mqtt.setKeepAlive(60);   // keepalive 60s
   reconnectMQTT();
 
   // 初始化公共 MQTT Broker (Web 控制台中继)
   pubMqtt.setServer(PUB_BROKER, PUB_PORT);
   pubMqtt.setCallback(pubMqttCallback);
+  pubMqtt.setKeepAlive(60);  // keepalive 60s
   reconnectPubMQTT();
 }
 
