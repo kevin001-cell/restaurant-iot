@@ -53,7 +53,7 @@ const char HTML_PAGE[] PROGMEM = R"=====(
 var L=0,B=0,on=false,C=null,D=[],T=[],H=[];
 
 // 核心轮询 — 不依赖 Chart.js
-function P(){fetch('/api/telemetry').then(function(r){return r.json()}).then(function(d){
+function P(){fetch('/api/telemetry?t='+Date.now()).then(function(r){return r.json()}).then(function(d){
 var s=document.getElementById('status');s.textContent='在线';s.className='status online';
 var t=d.temp,h=d.hum;document.getElementById('tv').textContent=t.toFixed(1);
 document.getElementById('hv').textContent=Math.round(h);
@@ -62,7 +62,7 @@ document.getElementById('humCard').classList.toggle('warn',h>80);
 if(!on||d.led!=L||d.bright!=B){L=d.led;B=d.bright;U(L==1,B);}
 if(C){var dt=new Date();var lb=String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');
 if(D.length==0||D[D.length-1]!==lb){D.push(lb);T.push(t);H.push(h);if(D.length>50){D.shift();T.shift();H.shift()}C.update();}}
-}).catch(function(e){var s=document.getElementById('status');s.textContent='离线';s.className='status offline';});setTimeout(P,10000);}
+}).catch(function(e){var s=document.getElementById('status');s.textContent='离线';s.className='status offline';});setTimeout(P,5000);}
 
 function U(s,b){document.getElementById('ld').className='led-dot'+(s?' on':'');document.getElementById('lbtn').textContent=s?'ON':'OFF';document.getElementById('lbtn').className='led-btn'+(s?' on':' off');document.getElementById('bri').value=b;document.getElementById('bval').textContent=b+'%';}
 function tL(){U(document.getElementById('lbtn').textContent==='OFF',parseInt(document.getElementById('bri').value));on=true;}
