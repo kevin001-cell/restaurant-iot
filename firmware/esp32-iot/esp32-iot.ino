@@ -27,6 +27,7 @@ bool shtAvailable = false;
 
 // ========== 上报计时 ==========
 unsigned long lastReportTime = 0;
+unsigned long lastPubReconnectAttempt = 0;
 const unsigned long REPORT_INTERVAL = 60000;  // 60秒
 
 // ========== MQTT Topic 拼接 ==========
@@ -263,7 +264,11 @@ void loop() {
   mqtt.loop();
 
   if (!pubMqtt.connected()) {
-    reconnectPubMQTT();
+    unsigned long nowPub = millis();
+    if (nowPub - lastPubReconnectAttempt >= 10000) {
+      lastPubReconnectAttempt = nowPub;
+      reconnectPubMQTT();
+    }
   }
   pubMqtt.loop();
 
