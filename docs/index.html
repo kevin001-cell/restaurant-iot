@@ -88,7 +88,7 @@ h1{text-align:center;font-size:22px;margin-bottom:6px;color:#e8734a}
   <h1>🌡️ 餐厅环境监控</h1>
   <p class="subtitle">屁屁点餐 · 智能温湿度</p>
 
-  <div class="status offline" id="status">JSONP加载中...</div>
+  <div class="status offline" id="status">连接中...</div>
 
   <div class="cards">
     <div class="card" id="tempCard">
@@ -146,7 +146,9 @@ mqttClient.on('connect', function() {
   console.log('MQTT WebSocket connected');
   document.getElementById('status').textContent = '在线';
   document.getElementById('status').className = 'status online';
-  mqttClient.subscribe(TOPIC_TELEMETRY);
+  mqttClient.subscribe(TOPIC_TELEMETRY, function(err) {
+    if (err) console.log('Subscribe error:', err);
+  });
 });
 
 mqttClient.on('message', function(topic, payload) {
@@ -258,7 +260,7 @@ function sendLedCmd() {
   const brightness = parseInt(slider.value);
 
   if (!mqttClient.connected) {
-    showToast('MQTT 未连接, 请稍后重试');
+    showToast('正在连接服务器, 请稍候重试...');
     return;
   }
 
