@@ -135,11 +135,20 @@ const HUM_ALERT_HIGH  = 80;
 
 let lastTemp = null, lastHum = null, lastLedState = 0, lastLedBright = 0;
 
+// ========== 检查 MQTT.js 是否加载 ==========
+if (typeof mqtt === 'undefined') {
+  document.getElementById('status').textContent = '错误: mqtt.min.js 未加载';
+  document.getElementById('status').className = 'status offline';
+  throw new Error('mqtt.min.js not loaded');
+}
+
 // ========== MQTT 连接 (WebSocket) ==========
+document.getElementById('status').textContent = '正在连接 ' + PUB_BROKER_WS + '...';
 const mqttClient = mqtt.connect(PUB_BROKER_WS, {
   clientId: 'web_' + Math.random().toString(16).slice(2, 10),
   keepalive: 60,
-  reconnectPeriod: 3000
+  reconnectPeriod: 3000,
+  connectTimeout: 10000
 });
 
 mqttClient.on('connect', function() {
@@ -164,13 +173,22 @@ mqttClient.on('message', function(topic, payload) {
 
 mqttClient.on('error', function(err) {
   console.log('MQTT error:', err);
-  document.getElementById('status').textContent = '离线 (连接失败)';
+  var msg = err && err.message ? err.message : String(err);
+  document.getElementById('status').textContent = '错误: ' + msg;
   document.getElementById('status').className = 'status offline';
 });
 
 mqttClient.on('offline', function() {
   document.getElementById('status').textContent = '离线 (重连中...)';
   document.getElementById('status').className = 'status offline';
+});
+
+mqttClient.on('reconnect', function() {
+  document.getElementById('status').textContent = '重连中...';
+});
+
+mqttClient.on('close', function() {
+  console.log('MQTT close');
 });
 
 // ========== 解析遥测数据 ==========
