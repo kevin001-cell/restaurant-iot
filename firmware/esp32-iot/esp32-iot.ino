@@ -336,6 +336,17 @@ void setup() {
   // HTTP Server
   server.begin();
   Serial.println("HTTP server :80");
+
+  // 立即读取一次传感器，避免前端等60秒才有数据
+  if (shtAvailable) {
+    float t, h;
+    if (sht30.readBoth(&t, &h)) {
+      lastTemp = round(t * 10) / 10.0;
+      lastHum  = round(h);
+      hasReadings = true;
+      Serial.printf("Init reading: %.1f°C, %.0f%%\n", lastTemp, lastHum);
+    }
+  }
 }
 
 // ========== Arduino Loop ==========
