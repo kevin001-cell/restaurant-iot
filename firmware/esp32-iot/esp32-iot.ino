@@ -53,8 +53,10 @@ const char HTML_PAGE[] PROGMEM = R"=====(
 var L=0,B=0,on=false,C=null,D=[],T=[],H=[];
 
 // 核心轮询 — 不依赖 Chart.js
-function P(){fetch('/api/telemetry?t='+Date.now()).then(function(r){return r.json()}).then(function(d){
-var s=document.getElementById('status');s.textContent='在线';s.className='status online';
+function P(){var st=Date.now();fetch('/api/telemetry?t='+st).then(function(r){return r.json()}).then(function(d){
+var dt=new Date(),ts=String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0')+':'+String(dt.getSeconds()).padStart(2,'0');
+var s=document.getElementById('status'),elapsed=Date.now()-st;
+s.textContent='在线 · 更新 '+ts+' ('+elapsed+'ms)';s.className='status online';
 var t=d.temp,h=d.hum;document.getElementById('tv').textContent=t.toFixed(1);
 document.getElementById('hv').textContent=Math.round(h);
 document.getElementById('tempCard').classList.toggle('warn',t>30);
